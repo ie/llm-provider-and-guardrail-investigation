@@ -1,26 +1,59 @@
-import { knowledgeBase, FALLBACK_ANSWER } from '../knowledge.js'
-import { loadFolderKnowledge } from '../loadKnowledge.js'
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime'
+import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime'
 
-export default function handler(req, res) {
+const REGION = process.env.AWS_REGION ?? 'us-east-1'
+const MODEL_ID = process.env.BEDROCK_MODEL_ID ?? '<BEDROCK_MODEL_ID>'
+const KNOWLEDGE_BASE_ID = process.env.BEDROCK_KNOWLEDGE_BASE_ID ?? '<BEDROCK_KNOWLEDGE_BASE_ID>'
+const GUARDRAIL_ID = process.env.BEDROCK_GUARDRAIL_ID ?? '<BEDROCK_GUARDRAIL_ID>'
+const GUARDRAIL_VERSION = process.env.BEDROCK_GUARDRAIL_VERSION ?? '<BEDROCK_GUARDRAIL_VERSION>'
+
+const SYSTEM_PROMPT =
+  'You are a product assistant. Answer only using the knowledge base context below. ' +
+  "If the context doesn't contain the answer, say you don't have that information."
+
+const bedrockRuntime = new BedrockRuntimeClient({ region: REGION })
+const bedrockAgentRuntime = new BedrockAgentRuntimeClient({ region: REGION })
+
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
 
   const { message } = req.body ?? {}
-  const query = String(message ?? '').toLowerCase()
+  const query = String(message ?? '')
 
-  const entries = [...knowledgeBase, ...loadFolderKnowledge()]
+  try {
+    const retrieval = await bedrockAgentRuntime.send(
+      new RetrieveCommand({
+        knowledgeBaseId: KNOWLEDGE_BASE_ID,
+        retrievalQuery: { text: query },
+      }),
+    )
 
-  let best = null
-  let bestScore = 0
-  for (const entry of entries) {
-    const score = entry.keywords.filter((keyword) => query.includes(keyword)).length
-    if (score > bestScore) {
-      bestScore = score
-      best = entry
-    }
+    const context = (retrieval.retrievalResults ?? [])
+      .map((result) => result.content?.text)
+      .filter(Boolean)
+      .join('\n\n')
+
+    const converse = await bedrockRuntime.send(
+      new ConverseCommand({
+        modelId: MODEL_ID,
+        system: [{ text: `${SYSTEM_PROMPT}\n\nContext:\n${context}` }],
+        messages: [{ role: 'user', content: [{ text: query }] }],
+        guardrailConfig: {
+          guardrailIdentifier: GUARDRAIL_ID,
+          guardrailVersion: GUARDRAIL_VERSION,
+          trace: 'enabled',
+        },
+      }),
+    )
+
+    const reply = converse.output?.message?.content?.[0]?.text ?? "I don't have that information."
+
+    res.status(200).json({ reply })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to get a response' })
   }
-
-  res.status(200).json({ reply: best ? best.answer : FALLBACK_ANSWER })
 }
