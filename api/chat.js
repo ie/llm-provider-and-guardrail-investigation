@@ -1,4 +1,5 @@
 import { knowledgeBase, FALLBACK_ANSWER } from '../knowledge.js'
+import { loadFolderKnowledge } from '../loadKnowledge.js'
 
 export default function handler(req, res) {
   if (req.method !== 'POST') {
@@ -9,9 +10,17 @@ export default function handler(req, res) {
   const { message } = req.body ?? {}
   const query = String(message ?? '').toLowerCase()
 
-  const match = knowledgeBase.find((entry) =>
-    entry.keywords.some((keyword) => query.includes(keyword)),
-  )
+  const entries = [...knowledgeBase, ...loadFolderKnowledge()]
 
-  res.status(200).json({ reply: match ? match.answer : FALLBACK_ANSWER })
+  let best = null
+  let bestScore = 0
+  for (const entry of entries) {
+    const score = entry.keywords.filter((keyword) => query.includes(keyword)).length
+    if (score > bestScore) {
+      bestScore = score
+      best = entry
+    }
+  }
+
+  res.status(200).json({ reply: best ? best.answer : FALLBACK_ANSWER })
 }
