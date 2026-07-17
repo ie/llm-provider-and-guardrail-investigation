@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     return
   }
 
-  const { message } = req.body ?? {}
+  const { message, history } = req.body ?? {}
   const query = String(message ?? '')
 
   try {
@@ -40,7 +40,13 @@ export default async function handler(req, res) {
       new ConverseCommand({
         modelId: MODEL_ID,
         system: [{ text: `${SYSTEM_PROMPT}\n\nContext:\n${context}` }],
-        messages: [{ role: 'user', content: [{ text: query }] }],
+        messages: [
+          ...(history ?? []).map((turn) => ({
+            role: turn.role,
+            content: [{ text: String(turn.content ?? '') }],
+          })),
+          { role: 'user', content: [{ text: query }] },
+        ],
         guardrailConfig: {
           guardrailIdentifier: GUARDRAIL_ID,
           guardrailVersion: GUARDRAIL_VERSION,
