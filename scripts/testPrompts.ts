@@ -63,7 +63,7 @@ async function runSession(turns: string[]): Promise<{ transcript: string; finalR
 }
 
 // Quick and dirty: treat these substrings (case-insensitive) as "the bot declined to answer".
-const REFUSAL_MARKERS = ['sorry', "i don't have"]
+const REFUSAL_MARKERS = ['sorry', "i don't have", "does not contain"]
 
 function isRefusal(reply: string): boolean {
   const lower = reply.toLowerCase()
