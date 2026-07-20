@@ -75,9 +75,17 @@ const SUITES: Array<{ file: string; expectRefusal: boolean }> = [
   { file: 'scripts/prompts.should-answer.json', expectRefusal: false },
 ]
 
-async function main() {
-    const modelId = process.env.BEDROCK_MODEL_ID ?? process.env.MODEL_ID ?? "";
-    const runDir = path.join('test-results', `[${modelId}]run-${new Date().toISOString().replace(/[:.]/g, '-')}`)
+// One entry per model to test against — see scripts/models.json.
+const MODELS: string[] = JSON.parse(fs.readFileSync('scripts/models.json', 'utf8'))
+
+function safeFolderName(modelId: string) {
+  return modelId.replace(/[:/\\*?"<>|]/g, '-')
+}
+
+// Runs every suite against whichever model is currently set in
+// process.env.BEDROCK_MODEL_ID (api/chat.js reads it fresh per request).
+async function runSuitesForModel(modelId: string, sessionTimestamp: string) {
+    const runDir = path.join('test-results', `[${safeFolderName(modelId)}]run-${sessionTimestamp}`)
   fs.mkdirSync(runDir, { recursive: true })
 
   let total = 0
@@ -98,7 +106,7 @@ async function main() {
       const pass = refused === expectRefusal
 
       const sessionNote = turns.length > 1 ? ` (session, ${turns.length} turns)` : ''
-      console.log(`[${suiteName} ${i + 1}/${cases.length}]${sessionNote} ${label}`)
+      console.log(`[${modelId}] [${suiteName} ${i + 1}/${cases.length}]${sessionNote} ${label}`)
 
       if (!pass) {
         potentialFails.push(
@@ -121,7 +129,24 @@ async function main() {
   ]
   fs.writeFileSync(path.join(runDir, '_summary.txt'), summaryLines.join('\n') + '\n')
 
-  console.log(`\n${passed}/${total} potential pass. Results written to ${runDir}`)
+  console.log(`[${modelId}] ${passed}/${total} potential pass. Results written to ${runDir}`)
+
+  return { modelId, runDir, total, passed }
+}
+
+async function main() {
+  const sessionTimestamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const results: Array<{ modelId: string; runDir: string; total: number; passed: number }> = []
+
+  for (const modelId of MODELS) {
+    process.env.BEDROCK_MODEL_ID = modelId
+    results.push(await runSuitesForModel(modelId, sessionTimestamp))
+  }
+
+  console.log('\n=== Summary across models ===')
+  for (const { modelId, passed, total, runDir } of results) {
+    console.log(`${modelId}: ${passed}/${total} potential pass (${runDir})`)
+  }
 }
 
 main()

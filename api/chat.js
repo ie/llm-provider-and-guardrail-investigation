@@ -2,7 +2,6 @@ import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-r
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime'
 
 const REGION = process.env.AWS_REGION ?? 'us-east-1'
-const MODEL_ID = process.env.BEDROCK_MODEL_ID ?? '<BEDROCK_MODEL_ID>'
 const KNOWLEDGE_BASE_ID = process.env.BEDROCK_KNOWLEDGE_BASE_ID ?? '<BEDROCK_KNOWLEDGE_BASE_ID>'
 const GUARDRAIL_ID = process.env.BEDROCK_GUARDRAIL_ID ?? '<BEDROCK_GUARDRAIL_ID>'
 const GUARDRAIL_VERSION = process.env.BEDROCK_GUARDRAIL_VERSION ?? '<BEDROCK_GUARDRAIL_VERSION>'
@@ -22,6 +21,9 @@ export default async function handler(req, res) {
 
   const { message, history } = req.body ?? {}
   const query = String(message ?? '')
+  // Read per-request so a caller (e.g. the multi-model test script) can switch
+  // models between requests without re-importing this module.
+  const MODEL_ID = process.env.BEDROCK_MODEL_ID ?? '<BEDROCK_MODEL_ID>'
 
   try {
     const retrieval = await bedrockAgentRuntime.send(
@@ -55,7 +57,8 @@ export default async function handler(req, res) {
       }),
     )
 
-    const reply = converse.output?.message?.content?.[0]?.text ?? "I don't have that information."
+    const reply =
+      converse.output?.message?.content?.find((block) => block.text)?.text ?? "I don't have that information."
 
     res.status(200).json({ reply })
   } catch (err) {
