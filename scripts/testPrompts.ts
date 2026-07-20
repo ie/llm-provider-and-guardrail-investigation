@@ -9,6 +9,12 @@ import { loadEnv } from 'vite'
 Object.assign(process.env, loadEnv('development', process.cwd(), ''))
 const { default: handler } = await import('../api/chat.js')
 
+// A test case is either a single-turn prompt, or an array of prompts that
+// simulate a longer chat session — each array entry is one turn, sent with
+// the accumulated history of the prior turns in that same array.
+type PromptCase = string | string[]
+type Turn = { role: 'user' | 'assistant'; content: string }
+
 function slugify(text: string) {
   return text
     .toLowerCase()
@@ -17,7 +23,7 @@ function slugify(text: string) {
     .slice(0, 40)
 }
 
-async function callChat(message: string): Promise<string> {
+async function callChat(message: string, history: Turn[]): Promise<string> {
   let responseBody: any
   const res = {
     statusCode: 200,
@@ -30,12 +36,30 @@ async function callChat(message: string): Promise<string> {
     },
   }
 
-  await handler({ method: 'POST', body: { message } } as any, res as any)
+  await handler({ method: 'POST', body: { message, history } } as any, res as any)
 
   if (res.statusCode >= 400) {
     return `[ERROR ${res.statusCode}] ${JSON.stringify(responseBody)}`
   }
   return responseBody?.reply ?? '(no reply)'
+}
+
+// Runs every turn in sequence, threading history the same way App.jsx does.
+// Returns the full transcript plus the final turn's reply, since the final
+// turn is the one under test — earlier turns are just context building up to it.
+async function runSession(turns: string[]): Promise<{ transcript: string; finalReply: string }> {
+  const history: Turn[] = []
+  const lines: string[] = []
+  let finalReply = ''
+
+  for (const turn of turns) {
+    const reply = await callChat(turn, history)
+    lines.push(`User: ${turn}`, `Bot: ${reply}`)
+    history.push({ role: 'user', content: turn }, { role: 'assistant', content: reply })
+    finalReply = reply
+  }
+
+  return { transcript: lines.join('\n\n'), finalReply }
 }
 
 // Quick and dirty: treat these substrings (case-insensitive) as "the bot declined to answer".
@@ -52,34 +76,38 @@ const SUITES: Array<{ file: string; expectRefusal: boolean }> = [
 ]
 
 async function main() {
-  const runDir = path.join('test-results', `run-${new Date().toISOString().replace(/[:.]/g, '-')}`)
+    const modelId = process.env.BEDROCK_MODEL_ID ?? process.env.MODEL_ID ?? "";
+    const runDir = path.join('test-results', `[${modelId}]run-${new Date().toISOString().replace(/[:.]/g, '-')}`)
   fs.mkdirSync(runDir, { recursive: true })
 
   let total = 0
   const potentialFails: string[] = []
 
   for (const { file, expectRefusal } of SUITES) {
-    const prompts: string[] = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const cases: PromptCase[] = JSON.parse(fs.readFileSync(file, 'utf8'))
     const suiteName = path.basename(file, '.json')
 
-    for (let i = 0; i < prompts.length; i++) {
-      const prompt = prompts[i]
+    for (let i = 0; i < cases.length; i++) {
+      const testCase = cases[i]
+      const turns = Array.isArray(testCase) ? testCase : [testCase]
+      const label = turns[turns.length - 1]
       total++
 
-      const reply = await callChat(prompt)
-      const refused = isRefusal(reply)
+      const { transcript, finalReply } = await runSession(turns)
+      const refused = isRefusal(finalReply)
       const pass = refused === expectRefusal
 
-      console.log(`[${suiteName} ${i + 1}/${prompts.length}] ${prompt}`)
+      const sessionNote = turns.length > 1 ? ` (session, ${turns.length} turns)` : ''
+      console.log(`[${suiteName} ${i + 1}/${cases.length}]${sessionNote} ${label}`)
 
       if (!pass) {
         potentialFails.push(
-          `${suiteName} #${i + 1}: "${prompt}"\n  expected ${expectRefusal ? 'refusal' : 'answer'}, got ${refused ? 'refusal' : 'answer'}\n  reply: ${reply}`,
+          `${suiteName} #${i + 1}${sessionNote}: "${label}"\n  expected ${expectRefusal ? 'refusal' : 'answer'}, got ${refused ? 'refusal' : 'answer'}\n  final reply: ${finalReply}`,
         )
       }
 
-      const fileName = `${suiteName}-${String(i + 1).padStart(2, '0')}-${slugify(prompt)}.txt`
-      fs.writeFileSync(path.join(runDir, fileName), `${prompt}\n\n${reply}\n`)
+      const fileName = `${suiteName}-${String(i + 1).padStart(2, '0')}-${slugify(label)}.txt`
+      fs.writeFileSync(path.join(runDir, fileName), `${transcript}\n`)
     }
   }
 
