@@ -6,7 +6,7 @@ const client = new OpenAI({
     baseURL: 'https://ai-gateway.vercel.sh/v1',
 })
 
-const MODEL = 'inclusionai/ling-3.0-flash-free'
+const MODEL = process.env.AI_GATEWAY_MODEL_NAME || "";
 const MAX_TOOL_ITERATIONS = 5
 
 async function resolveFunctionCalls(functionCalls) {
@@ -26,7 +26,6 @@ async function resolveFunctionCalls(functionCalls) {
     )
 }
 
-// Common provider interface: given a message and prior turns, return the reply text.
 export async function chat({ message, history }) {
     const tools = Object.values(TOOLS).map((tool) => tool.definition)
 
