@@ -13,6 +13,7 @@
     "@aws-sdk/client-bedrock-agent-runtime": "^3.1089.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1089.0",
     "@azure/ai-agents": "^1.1.0",
+    "@azure/ai-projects": "^2.3.1",
     "@azure/identity": "^4.5.0",
     "ai": "^7.0.30",
     "openai": "^6.48.0",
