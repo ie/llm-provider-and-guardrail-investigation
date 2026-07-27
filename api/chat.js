@@ -1,12 +1,14 @@
 import * as bedrock from './providers/bedrock.js'
 import * as azure from './providers/azure.js'
+import * as vercel from './providers/vercel.js'
 import { fetchLocationSuggestion } from './mockService.js'
 
 // Each provider module exports chat({ message, history }) => Promise<string>.
 // Add new providers here and select one via CHAT_PROVIDER.
 const PROVIDERS = {
   bedrock,
-  azure,
+    azure,
+  vercel,
 }
 
 const TOOLS_REQUIRED_REGEX = /\bdealers?\b/i
@@ -17,8 +19,7 @@ export default async function handler(req, res) {
     return
   }
 
-  const providerName = process.env.CHAT_PROVIDER ?? 'bedrock'
-  const provider = PROVIDERS[providerName]
+  const provider = PROVIDERS['vercel']
   if (!provider) {
     res.status(500).json({ error: `Unknown chat provider: ${providerName}` })
     return
