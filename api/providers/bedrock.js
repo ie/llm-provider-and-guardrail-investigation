@@ -1,7 +1,8 @@
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime'
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime'
+import { fetchLocationSuggestion } from '../mockService.js'
 
-const REGION = process.env.AWS_REGION ?? 'us-east-1'
+const REGION = process.env.AWS_REGION ?? 'ap-southeast-2'
 const KNOWLEDGE_BASE_ID = process.env.BEDROCK_KNOWLEDGE_BASE_ID ?? '<BEDROCK_KNOWLEDGE_BASE_ID>'
 const GUARDRAIL_ID = process.env.BEDROCK_GUARDRAIL_ID ?? '<BEDROCK_GUARDRAIL_ID>'
 const GUARDRAIL_VERSION = process.env.BEDROCK_GUARDRAIL_VERSION ?? '<BEDROCK_GUARDRAIL_VERSION>'
@@ -13,16 +14,26 @@ const SYSTEM_PROMPT =
 const bedrockRuntime = new BedrockRuntimeClient({ region: REGION })
 const bedrockAgentRuntime = new BedrockAgentRuntimeClient({ region: REGION })
 
+// Bedrock has no function-calling support here, so unlike vercel.js this is a
+// regex-sniffed fallback rather than a real tool call.
+const TOOLS_REQUIRED_REGEX = /\bdealers?\b/i
+
 // Common provider interface: given a message and prior turns, return the reply text.
 export async function chat({ message, history }) {
   // Read per-request rather than at module load so callers (e.g. the multi-model
   // test script) can switch models between requests without re-importing this module.
   const MODEL_ID = process.env.BEDROCK_MODEL_ID ?? '<BEDROCK_MODEL_ID>'
 
+  let providerMessage = String(message ?? '')
+  if (TOOLS_REQUIRED_REGEX.test(providerMessage)) {
+    const location = await fetchLocationSuggestion()
+    providerMessage += `\n\n[Tool: nearest dealer location suggestion] ${location}`
+  }
+
   const retrieval = await bedrockAgentRuntime.send(
     new RetrieveCommand({
       knowledgeBaseId: KNOWLEDGE_BASE_ID,
-      retrievalQuery: { text: message },
+      retrievalQuery: { text: providerMessage },
     }),
   )
 
@@ -40,7 +51,7 @@ export async function chat({ message, history }) {
           role: turn.role,
           content: [{ text: String(turn.content ?? '') }],
         })),
-        { role: 'user', content: [{ text: message }] },
+        { role: 'user', content: [{ text: providerMessage }] },
       ],
       guardrailConfig: {
         guardrailIdentifier: GUARDRAIL_ID,

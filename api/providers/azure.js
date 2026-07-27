@@ -1,69 +1,65 @@
-import { AgentsClient } from '@azure/ai-agents'
+import { AIProjectClient } from '@azure/ai-projects'
 import { DefaultAzureCredential } from '@azure/identity'
-import { TOOLS } from './azureTools.js'
+import { TOOLS } from './tools.js'
 
 const PROJECT_ENDPOINT = process.env.AZURE_AI_PROJECT_ENDPOINT ?? '<AZURE_AI_PROJECT_ENDPOINT>'
-const AGENT_ID = process.env.AZURE_AI_AGENT_ID ?? '<AZURE_AI_AGENT_ID>'
 
-const client = new AgentsClient(PROJECT_ENDPOINT, new DefaultAzureCredential())
+const project = new AIProjectClient(PROJECT_ENDPOINT, new DefaultAzureCredential())
+const openai = project.getOpenAIClient()
 
 const REFUSAL = "I don't have that information."
-const POLL_INTERVAL_MS = 1000
 
-async function resolveToolCalls(toolCalls) {
-  return Promise.all(
-    toolCalls.map(async (call) => {
-      const tool = TOOLS[call.function.name]
-      const output = tool
-        ? await tool.handler(JSON.parse(call.function.arguments || '{}'))
-        : `Unknown tool: ${call.function.name}`
-      return { toolCallId: call.id, output: String(output) }
-    }),
-  )
-}
-
-async function waitForRun(threadId, run) {
-  while (run.status === 'queued' || run.status === 'in_progress') {
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
-    run = await client.runs.get(threadId, run.id)
-  }
-
-  if (run.status === 'requires_action') {
-    const toolOutputs = await resolveToolCalls(run.requiredAction.submitToolOutputs.toolCalls)
-    const updatedRun = await client.runs.submitToolOutputs(threadId, run.id, toolOutputs)
-    return waitForRun(threadId, updatedRun)
-  }
-
-  return run
+async function resolveFunctionCalls(functionCalls) {
+    return Promise.all(
+        functionCalls.map(async (call) => {
+            const tool = TOOLS[call.name]
+            const output = tool
+                ? await tool.handler(JSON.parse(call.arguments || '{}'))
+                : `Unknown tool: ${call.name}`
+            return { type: 'function_call_output', call_id: call.call_id, output: String(output) }
+        }),
+    )
 }
 
 // Common provider interface: given a message and prior turns, return the reply text.
 export async function chat({ message, history }) {
-  const thread = await client.threads.create()
+    // Read per-request rather than at module load so callers (e.g. the multi-model
+    // test script) can switch agents between requests without re-importing this module.
+    const AGENT_NAME = process.env.AZURE_AI_AGENT_NAME ?? '<AZURE_AI_AGENT_NAME>'
 
-  for (const turn of history) {
-    await client.messages.create(thread.id, turn.role, String(turn.content ?? ''))
-  }
-  await client.messages.create(thread.id, 'user', message)
+    const conversation = await openai.conversations.create({
+        items: [
+            ...history.map((turn) => ({
+                type: 'message',
+                role: turn.role,
+                content: String(turn.content ?? ''),
+            })),
+            { type: 'message', role: 'user', content: message },
+        ],
+    })
 
-  const toolDefinitions = Object.values(TOOLS).map((tool) => tool.definition)
-  const initialRun = await client.runs.create(thread.id, AGENT_ID, {
-    ...(toolDefinitions.length > 0 && { tools: toolDefinitions }),
-  })
-  const run = await waitForRun(thread.id, initialRun)
+    // Tools are configured on the agent itself in Foundry, not per-request here —
+    // the API rejects a `tools` override when `agent_reference` is set. TOOLS is
+    // only used below to execute whichever function calls the agent decides to make.
+    const createResponse = () =>
+        openai.responses.create(
+            { conversation: conversation.id },
+            { body: { agent_reference: { type: 'agent_reference', name: AGENT_NAME } } },
+        )
 
-  if (run.status !== 'completed') {
-    return REFUSAL
-  }
+    let response = await createResponse()
+    let functionCalls = response.output.filter((item) => item.type === 'function_call')
 
-  const messages = client.messages.list(thread.id, { order: 'asc' })
-  let lastAssistantText
-  for await (const item of messages) {
-    if (item.role === 'assistant') {
-      const textContent = item.content.find((c) => c.type === 'text')
-      if (textContent) lastAssistantText = textContent.text.value
+    while (functionCalls.length > 0) {
+        const toolOutputs = await resolveFunctionCalls(functionCalls)
+        await openai.conversations.items.create(conversation.id, { items: toolOutputs })
+        response = await createResponse()
+        functionCalls = response.output.filter((item) => item.type === 'function_call')
     }
-  }
 
-  return lastAssistantText ?? REFUSAL
+    if (response.status !== 'completed') {
+        return REFUSAL
+    }
+
+    return response.output_text ?? REFUSAL
 }
