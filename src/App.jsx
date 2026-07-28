@@ -3,6 +3,7 @@ import { useState } from 'react'
 export default function App() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
+  const [error, setError] = useState('')
 
   async function sendMessage(e) {
     e.preventDefault()
@@ -23,14 +24,18 @@ export default function App() {
         })),
       }),
     })
-    const data = await res.json()
-
-    setMessages((prev) => [...prev, { role: 'bot', text: data.reply }])
+      const data = await res.json()
+      if (data.error) {
+          setError(`${res.status} ${data.details || data.error}`);
+      } 
+      else 
+        setMessages((prev) => [...prev, { role: 'bot', text: data.reply }])
   }
 
   return (
     <div>
-      <h1>Product Chat</h1>
+          <h1>Product Chat</h1>
+          {error && <p style={{color: 'red'}}>{error}</p>}
       <ul>
         {messages.map((m, i) => (
           <li key={i}>
