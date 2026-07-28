@@ -1,3 +1,5 @@
+// deprecated for bedrock-mantle
+
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime'
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime'
 import { fetchLocationSuggestion } from '../mockService.js'
@@ -14,14 +16,11 @@ const SYSTEM_PROMPT =
 const bedrockRuntime = new BedrockRuntimeClient({ region: REGION })
 const bedrockAgentRuntime = new BedrockAgentRuntimeClient({ region: REGION })
 
-// Bedrock has no function-calling support here, so unlike vercel.js this is a
-// regex-sniffed fallback rather than a real tool call.
+// No function-calling support here; regex-sniff the message and splice in a manual tool result instead.
 const TOOLS_REQUIRED_REGEX = /\bdealers?\b/i
 
-// Common provider interface: given a message and prior turns, return the reply text.
 export async function chat({ message, history }) {
-  // Read per-request rather than at module load so callers (e.g. the multi-model
-  // test script) can switch models between requests without re-importing this module.
+  // Read per-request, not at module load, so the model can be swapped between calls without re-importing.
   const MODEL_ID = process.env.BEDROCK_MODEL_ID ?? '<BEDROCK_MODEL_ID>'
 
   let providerMessage = String(message ?? '')
