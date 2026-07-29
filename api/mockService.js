@@ -1,4 +1,4 @@
-const fetchLocationSuggestion = async () => {
+const fetchLocationSuggestion = async (location) => {
   return 'Sydney 2000'
 }
 
