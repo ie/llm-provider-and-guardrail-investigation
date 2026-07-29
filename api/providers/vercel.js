@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { DefaultAzureCredential } from '@azure/identity'
 import { TOOLS } from './tools.js'
 
 const client = new OpenAI({
@@ -8,6 +9,58 @@ const client = new OpenAI({
 
 const MODEL = process.env.AI_GATEWAY_MODEL_NAME || "";
 const MAX_TOOL_ITERATIONS = 5
+
+const CONTENT_SAFETY_ENDPOINT = process.env.AZURE_CONTENT_SAFETY_ENDPOINT ?? '<AZURE_CONTENT_SAFETY_ENDPOINT>'
+const REFUSAL = "I can't help with that request."
+
+const AZURE_SEARCH_ENDPOINT = process.env.AZURE_SEARCH_ENDPOINT ?? '<AZURE_SEARCH_ENDPOINT>'
+const AZURE_SEARCH_INDEX_NAME = process.env.AZURE_SEARCH_INDEX_NAME ?? '<AZURE_SEARCH_INDEX_NAME>'
+const AZURE_SEARCH_CONTENT_FIELD = process.env.AZURE_SEARCH_CONTENT_FIELD ?? 'content'
+const AZURE_SEARCH_API_KEY = process.env.AZURE_SEARCH_API_KEY ?? '<AZURE_SEARCH_QUERY_KEY>'
+
+const credential = new DefaultAzureCredential()
+
+async function shieldPrompt(userPrompt) {
+    const { token } = await credential.getToken('https://cognitiveservices.azure.com/.default')
+    const response = await fetch(`${CONTENT_SAFETY_ENDPOINT}/contentsafety/text:shieldPrompt?api-version=2024-09-01`, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userPrompt, documents: [] }),
+    })
+
+    if (!response.ok) {
+        throw new Error(`Prompt Shield request failed: ${response.status} ${await response.text()}`)
+    }
+
+    return response.json()
+}
+
+async function retrieveContext(query) {
+    const response = await fetch(
+        `${AZURE_SEARCH_ENDPOINT}/indexes/${AZURE_SEARCH_INDEX_NAME}/docs/search?api-version=2024-07-01`,
+        {
+            method: 'POST',
+            headers: {
+                'api-key': AZURE_SEARCH_API_KEY,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ search: query, top: 5 }),
+        },
+    )
+
+    if (!response.ok) {
+        throw new Error(`Azure AI Search request failed: ${response.status} ${await response.text()}`)
+    }
+
+    const { value } = await response.json()
+    return (value ?? [])
+        .map((doc) => doc[AZURE_SEARCH_CONTENT_FIELD])
+        .filter(Boolean)
+        .join('\n\n')
+}
 
 async function resolveFunctionCalls(functionCalls) {
     return Promise.all(
@@ -27,9 +80,19 @@ async function resolveFunctionCalls(functionCalls) {
 }
 
 export async function chat({ message, history }) {
+    const shieldResult = await shieldPrompt(message)
+    if (shieldResult.userPromptAnalysis?.attackDetected) {
+        return REFUSAL
+    }
+
+    const context = await retrieveContext(message)
+
     const tools = Object.values(TOOLS).map((tool) => tool.definition)
 
     let input = [
+        ...(context
+            ? [{ role: 'system', content: `Answer using the knowledge base context below.\n\nContext:\n${context}` }]
+            : []),
         ...history.map((turn) => ({
             role: turn.role,
             content: String(turn.content ?? ''),
