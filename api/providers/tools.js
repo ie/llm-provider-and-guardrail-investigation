@@ -1,5 +1,11 @@
 import { fetchLocationSuggestion } from '../mockService.js'
 
+/**
+ * Tips to avoid large token spend when embedding functions
+ * - Description must be concise so the model knows what to pick
+ * - Large API response need to be parsed and/or cached
+ * - Set hard cut off to avoid infinite calls
+ */
 export const TOOLS = {
   find_nearest_dealer: {
     definition: {

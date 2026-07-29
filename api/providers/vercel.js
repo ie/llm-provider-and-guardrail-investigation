@@ -7,7 +7,7 @@ const client = new OpenAI({
     baseURL: 'https://ai-gateway.vercel.sh/v1',
 })
 
-const MODEL = process.env.AI_GATEWAY_MODEL_NAME || "";
+const MODEL = process.env.AI_GATEWAY_MODEL_NAME ?? "";
 const MAX_TOOL_ITERATIONS = 5
 
 const CONTENT_SAFETY_ENDPOINT = process.env.AZURE_CONTENT_SAFETY_ENDPOINT ?? '<AZURE_CONTENT_SAFETY_ENDPOINT>'
@@ -20,7 +20,7 @@ const AZURE_SEARCH_API_KEY = process.env.AZURE_SEARCH_API_KEY ?? '<AZURE_SEARCH_
 
 const credential = new DefaultAzureCredential()
 
-async function shieldPrompt(userPrompt) {
+async function shieldPrompt(userPrompt, documents = []) {
     const { token } = await credential.getToken('https://cognitiveservices.azure.com/.default')
     const response = await fetch(`${CONTENT_SAFETY_ENDPOINT}/contentsafety/text:shieldPrompt?api-version=2024-09-01`, {
         method: 'POST',
@@ -28,7 +28,7 @@ async function shieldPrompt(userPrompt) {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userPrompt, documents: [] }),
+        body: JSON.stringify({ userPrompt, documents }),
     })
 
     if (!response.ok) {
@@ -80,12 +80,15 @@ async function resolveFunctionCalls(functionCalls) {
 }
 
 export async function chat({ message, history }) {
-    const shieldResult = await shieldPrompt(message)
-    if (shieldResult.userPromptAnalysis?.attackDetected) {
-        return REFUSAL
-    }
-
     const context = await retrieveContext(message)
+
+    const shieldResult = await shieldPrompt(message, context ? [context] : [])
+    const attackDetected =
+        shieldResult.userPromptAnalysis?.attackDetected || shieldResult.documentsAnalysis?.some((doc) => doc.attackDetected)
+
+    if (attackDetected) {
+        return `[ATTACK DETECTED] ${REFUSAL}`
+    }
 
     const tools = Object.values(TOOLS).map((tool) => tool.definition)
 
