@@ -1,0 +1,28 @@
+sequenceDiagram
+    participant Client
+    participant Backend as Backend<br/>api/chat
+    participant KB as Knowledge Base<br/>- Azure Search Index API<br/>- AWS Bedrock Retrieve API<br/>- local folder/embeddings
+    participant Model as LLM Client (e.g OpenAI, Bedrock)<br/>Model
+    participant Tool as Tool handler<br/>tools.js
+
+    Client->>Backend: input
+
+    rect rgb(255, 0, 255)
+    Note right of Backend: Prompt shield
+    Backend->>KB: messages
+    KB-->>Backend: retrieval (json)
+    end
+
+    Backend->>Model: - [optional] System prompt<br/>- [if exist] Retrieved kb content<br/>- Messages
+    Model-->>Backend: response: text OR required tool name
+
+    loop Repeat if tool required, until hitting stop/tool iteration limit
+        Backend->>Tool: if tool required: execute(tool name, input?)
+        Tool-->>Backend: response: from function call
+        Backend->>Model: Added tool result to messages
+        Model-->>Backend: response: additional tool name
+    end
+
+    Note left of Backend: Depending on the model, user may be prompted to get more info
+
+    Backend-->>Client: response: text
