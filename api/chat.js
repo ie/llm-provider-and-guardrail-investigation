@@ -1,68 +1,40 @@
-import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime'
-import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime'
+import * as bedrock from './providers/bedrock.js'
+import * as bedrockMantle from './providers/bedrock-mantle.js'
+import * as azure from './providers/azure.js'
+import * as vercel from './providers/vercel.js'
 
-const REGION = process.env.AWS_REGION ?? 'us-east-1'
-const KNOWLEDGE_BASE_ID = process.env.BEDROCK_KNOWLEDGE_BASE_ID ?? '<BEDROCK_KNOWLEDGE_BASE_ID>'
-const GUARDRAIL_ID = process.env.BEDROCK_GUARDRAIL_ID ?? '<BEDROCK_GUARDRAIL_ID>'
-const GUARDRAIL_VERSION = process.env.BEDROCK_GUARDRAIL_VERSION ?? '<BEDROCK_GUARDRAIL_VERSION>'
-
-const SYSTEM_PROMPT =
-  'You are a product assistant. Answer only using the knowledge base context below. ' +
-  "If the context doesn't contain the answer, say you don't have that information."
-
-const bedrockRuntime = new BedrockRuntimeClient({ region: REGION })
-const bedrockAgentRuntime = new BedrockAgentRuntimeClient({ region: REGION })
+const PROVIDERS = {
+    bedrock,
+    'bedrock-mantle': bedrockMantle,
+    azure,
+    vercel,
+}
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' })
-    return
-  }
+    if (req.method !== 'POST') {
+        res.status(405).json({ error: 'Method not allowed' })
+        return
+    }
 
-  const { message, history } = req.body ?? {}
-  const query = String(message ?? '')
-  // Read per-request so a caller (e.g. the multi-model test script) can switch
-  // models between requests without re-importing this module.
-  const MODEL_ID = process.env.BEDROCK_MODEL_ID ?? '<BEDROCK_MODEL_ID>'
+    const providerName = process.env.PROVIDER
+    if (!providerName) {
+        res.status(500).json({ error: 'PROVIDER environment variable is not set' })
+        return
+    }
 
-  try {
-    const retrieval = await bedrockAgentRuntime.send(
-      new RetrieveCommand({
-        knowledgeBaseId: KNOWLEDGE_BASE_ID,
-        retrievalQuery: { text: query },
-      }),
-    )
+    const provider = PROVIDERS[providerName]
+    if (!provider) {
+        res.status(500).json({ error: `Unknown chat provider: ${providerName}` })
+        return
+    }
 
-    const context = (retrieval.retrievalResults ?? [])
-      .map((result) => result.content?.text)
-      .filter(Boolean)
-      .join('\n\n')
+    const { message, history } = req.body ?? {}
 
-    const converse = await bedrockRuntime.send(
-      new ConverseCommand({
-        modelId: MODEL_ID,
-        system: [{ text: `${SYSTEM_PROMPT}\n\nContext:\n${context}` }],
-        messages: [
-          ...(history ?? []).map((turn) => ({
-            role: turn.role,
-            content: [{ text: String(turn.content ?? '') }],
-          })),
-          { role: 'user', content: [{ text: query }] },
-        ],
-        guardrailConfig: {
-          guardrailIdentifier: GUARDRAIL_ID,
-          guardrailVersion: GUARDRAIL_VERSION,
-          trace: 'enabled',
-        },
-      }),
-    )
-
-    const reply =
-      converse.output?.message?.content?.find((block) => block.text)?.text ?? "I don't have that information."
-
-    res.status(200).json({ reply })
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Failed to get a response' })
-  }
+    try {
+        const reply = await provider.chat({ message: String(message ?? ''), history: history ?? [] })
+        res.status(200).json({ reply })
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({ error: 'Failed to get a response' })
+    }
 }

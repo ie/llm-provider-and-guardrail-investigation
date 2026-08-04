@@ -84,8 +84,8 @@ function safeFolderName(modelId: string) {
 
 // Runs every suite against whichever model is currently set in
 // process.env.BEDROCK_MODEL_ID (api/chat.js reads it fresh per request).
-async function runSuitesForModel(modelId: string, sessionTimestamp: string) {
-    const runDir = path.join('test-results', `[${safeFolderName(modelId)}]run-${sessionTimestamp}`)
+async function runSuitesForModel(modelId: string, providerName: string, sessionTimestamp: string) {
+  const runDir = path.join('test-results', providerName, `${safeFolderName(modelId)}_run-${sessionTimestamp}`)
   fs.mkdirSync(runDir, { recursive: true })
 
   let total = 0
@@ -135,12 +135,15 @@ async function runSuitesForModel(modelId: string, sessionTimestamp: string) {
 }
 
 async function main() {
+  // Matches the default resolution in api/chat.js, so results land under the
+  // provider folder that's actually being exercised.
+  const providerName = process.env.CHAT_PROVIDER ?? 'bedrock'
   const sessionTimestamp = new Date().toISOString().replace(/[:.]/g, '-')
   const results: Array<{ modelId: string; runDir: string; total: number; passed: number }> = []
 
   for (const modelId of MODELS) {
     process.env.BEDROCK_MODEL_ID = modelId
-    results.push(await runSuitesForModel(modelId, sessionTimestamp))
+    results.push(await runSuitesForModel(modelId, providerName, sessionTimestamp))
   }
 
   console.log('\n=== Summary across models ===')
