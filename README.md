@@ -18,7 +18,7 @@ The azure/bedrock-mantle files are agent "equivalent" version code. They require
 ## Quickstart
 
 ```bash
-npm run dev
+yarn dev
 ```
 
 ## Testing
@@ -27,5 +27,5 @@ The first version of this repo uses the json files in scripts/ to automate feedi
 It is not guaranteed the test is working after numerous commits.
 
 ```bash
-npm run test:prompts
+yarn test:prompts
 ```

@@ -3,8 +3,3 @@ html, body {
   margin: 0;
   padding: 0;
 }
-
-#root {
-  min-height: 100%;
-  background-color: #232632;
-}

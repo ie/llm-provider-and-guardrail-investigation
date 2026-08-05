@@ -7,8 +7,12 @@ import {
   Typography,
   FormSection,
   Box,
+  Select,
 } from '@tmca/lexus-kit'
 import { useState } from 'react'
+
+import MODELS from '../scripts/models.json'
+const MODEL_NAMES = MODELS[import.meta.env.VITE_PROVIDER]
 
 export default function App() {
   /*
@@ -18,6 +22,7 @@ export default function App() {
    */
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
+  const [selectedModel, setSelectedModel] = useState('')
   const [error, setError] = useState('')
 
   async function sendMessage(e) {
@@ -37,6 +42,7 @@ export default function App() {
           role: m.role === 'bot' ? 'assistant' : 'user',
           content: m.text,
         })),
+        modelId: selectedModel,
       }),
     })
     const data = await res.json()
@@ -45,19 +51,28 @@ export default function App() {
     } else setMessages((prev) => [...prev, { role: 'bot', text: data.reply }])
   }
 
-    // TODO: When no input, default to center title + chat section
-    // Then expand to the title + messages + chat section
-    
+  const modelOptions = MODEL_NAMES?.map((m) => ({ label: m, value: m }))
+
+  // TODO: When no input, default to center title + chat section
+  // Then expand to the title + messages + chat section
   return (
     <ContentBlock>
       <ContentBlockInnerContainer width="8col">
-        <Stack component={Box} direction="column" spacing="s" style={{ height: '90vh'}}>
+        <Stack
+          component={Box}
+          direction="column"
+          spacing="s"
+          style={{ height: '90vh' }}
+        >
           <Typography variant="h3" component="h5" hasSenkeiLine>
             Lexus Chat
           </Typography>
 
           {/* Chat */}
-          <Stack direction="column" style={{ flex: '1 1 auto', overflowY:'auto' }}>
+          <Stack
+            direction="column"
+            style={{ flex: '1 1 auto', overflowY: 'auto' }}
+          >
             {messages.map((m, i) => (
               <TooltipPopup
                 key={i}
@@ -65,34 +80,49 @@ export default function App() {
                   m.role === 'user' ? 'middle-left' : 'middle-right'
                 }
               >
-                <strong>{m.role}:</strong> {m.text}
+                {m.text}
               </TooltipPopup>
             ))}
           </Stack>
+
           {/* Input */}
           <FormSection style={{ flexShrink: 0 }}>
             <form onSubmit={sendMessage}>
-              <Stack spacing="none">
-                <input
-                  style={{
-                    flexGrow: 1,
-                    background: 'none',
-                    color: 'white',
-                    fontSize: '1.5rem',
-                    border: 'none',
-                  }}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask about the product..."
-                />
-                <Button variant="primary" type="submit">
-                  Send
-                </Button>
+              <Stack direction="column">
+                {modelOptions.length > 0 && (
+                  <Select
+                    label="models"
+                    options={modelOptions}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                  />
+                )}
+                <Stack spacing="none">
+                  <input
+                    style={{
+                      flexGrow: 1,
+                      background: 'none',
+                      color: 'white',
+                      fontSize: '1.25rem',
+                      border: 'none',
+                    }}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Ask about the product..."
+                  />
+                  <Button variant="primary" type="submit">
+                    Send
+                  </Button>
+                </Stack>
               </Stack>
             </form>
           </FormSection>
         </Stack>
       </ContentBlockInnerContainer>
+
+      <Button variant="secondary" onClick={() => setMessages([])}>
+        + New
+      </Button>
+
       {error && (
         <Typography color="red" style={{ color: 'red' }}>
           {error}

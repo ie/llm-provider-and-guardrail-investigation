@@ -58,9 +58,9 @@ export default async function handler(req, res) {
         return
     }
 
-    const providerName = process.env.PROVIDER
+    const providerName = process.env.VITE_PROVIDER
     if (!providerName) {
-        res.status(500).json({ error: 'PROVIDER environment variable is not set' })
+        res.status(500).json({ error: 'VITE_PROVIDER environment variable is not set' })
         return
     }
 
@@ -76,7 +76,7 @@ export default async function handler(req, res) {
         return
     }
 
-    const { message, history } = req.body ?? {}
+    const { message, history, modelId } = req.body ?? {}
 
     if (typeof message !== 'string' || message.trim() === '') {
         res.status(400).json({ error: 'message must be a non-empty string' })
@@ -94,7 +94,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        const reply = await withTimeout(provider.chat({ message, history: validatedHistory }), CHAT_TIMEOUT_MS)
+        const reply = await withTimeout(provider.chat({ message, history: validatedHistory, modelId }), CHAT_TIMEOUT_MS)
         res.status(200).json({ reply })
     } catch (err) {
         if (err.message === 'TIMEOUT') {
