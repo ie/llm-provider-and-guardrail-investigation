@@ -1,41 +1,38 @@
 import OpenAI from 'openai'
-import { DefaultAzureCredential } from '@azure/identity'
-import { TOOLS } from './tools.js'
+import { TOOLS, resolveFunctionCalls } from './tools.js'
+import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from './config.js'
+import { withRetry } from './retry.js'
+import { shieldPrompt } from './azureContext.js'
 
 const client = new OpenAI({
     apiKey: process.env.AI_GATEWAY_API_KEY,
     baseURL: 'https://ai-gateway.vercel.sh/v1',
 })
 
-const MODEL = process.env.AI_GATEWAY_MODEL_NAME ?? "";
-const MAX_TOOL_ITERATIONS = 5
-
-const CONTENT_SAFETY_ENDPOINT = process.env.AZURE_CONTENT_SAFETY_ENDPOINT ?? '<AZURE_CONTENT_SAFETY_ENDPOINT>'
-const REFUSAL = "I can't help with that request."
-
 const AZURE_SEARCH_ENDPOINT = process.env.AZURE_SEARCH_ENDPOINT ?? '<AZURE_SEARCH_ENDPOINT>'
 const AZURE_SEARCH_INDEX_NAME = process.env.AZURE_SEARCH_INDEX_NAME ?? '<AZURE_SEARCH_INDEX_NAME>'
 const AZURE_SEARCH_CONTENT_FIELD = process.env.AZURE_SEARCH_CONTENT_FIELD ?? 'content'
 const AZURE_SEARCH_API_KEY = process.env.AZURE_SEARCH_API_KEY ?? '<AZURE_SEARCH_QUERY_KEY>'
 
-const credential = new DefaultAzureCredential()
+// If using Bedrock's Guardrail in a headless way
+//const bedrockRuntime = new BedrockRuntimeClient({ region: REGION })
+//const GUARDRAIL_ID = process.env.BEDROCK_GUARDRAIL_ID ?? '<BEDROCK_GUARDRAIL_ID>'
+//const GUARDRAIL_VERSION = process.env.BEDROCK_GUARDRAIL_VERSION ?? '<BEDROCK_GUARDRAIL_VERSION>'
+//async function applyGuardRail(userPrompt, documents = []) {
+//    const response = await bedrockRuntime.send(new ApplyGuardrailCommand({
+//        guardrailIdentifier: GUARDRAIL_ID,
+//        guardrailVersion: GUARDRAIL_VERSION,
+//        source: 'INPUT',
+//        content: [
+//            { text: { text: userPrompt, qualifiers: ['query'] } },
+//            ...documents.map((doc) => ({ text: { text: doc, qualifiers: ['grounding_source'] } })),
+//        ],
+//    }))
+//    return response.action === 'GUARDRAIL_INTERVENED'
+//}
 
-async function shieldPrompt(userPrompt, documents = []) {
-    const { token } = await credential.getToken('https://cognitiveservices.azure.com/.default')
-    const response = await fetch(`${CONTENT_SAFETY_ENDPOINT}/contentsafety/text:shieldPrompt?api-version=2024-09-01`, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userPrompt, documents }),
-    })
-
-    if (!response.ok) {
-        throw new Error(`Prompt Shield request failed: ${response.status} ${await response.text()}`)
-    }
-
-    return response.json()
+async function createResponse(params) {
+    return withRetry(() => client.responses.create(params), (err) => err?.status === 429)
 }
 
 async function retrieveContext(query) {
@@ -62,24 +59,9 @@ async function retrieveContext(query) {
         .join('\n\n')
 }
 
-async function resolveFunctionCalls(functionCalls) {
-    return Promise.all(
-        functionCalls.map(async (call) => {
-            const tool = TOOLS[call.name]
-            if (!tool) {
-                return { type: 'function_call_output', call_id: call.call_id, output: `Unknown tool: ${call.name}` }
-            }
-            try {
-                const output = await tool.handler(JSON.parse(call.arguments || '{}'))
-                return { type: 'function_call_output', call_id: call.call_id, output: String(output) }
-            } catch (err) {
-                return { type: 'function_call_output', call_id: call.call_id, output: `Error running ${call.name}: ${err.message}` }
-            }
-        }),
-    )
-}
+export async function chat({ message, history, modelId }) {
+    const MODEL = modelId || process.env.AI_GATEWAY_MODEL_NAME || ""
 
-export async function chat({ message, history }) {
     const context = await retrieveContext(message)
 
     const shieldResult = await shieldPrompt(message, context ? [context] : [])
@@ -87,7 +69,7 @@ export async function chat({ message, history }) {
         shieldResult.userPromptAnalysis?.attackDetected || shieldResult.documentsAnalysis?.some((doc) => doc.attackDetected)
 
     if (attackDetected) {
-        return `[ATTACK DETECTED] ${REFUSAL}`
+        return `${REFUSAL_MESSAGE}`
     }
 
     const tools = Object.values(TOOLS).map((tool) => tool.definition)
@@ -103,14 +85,14 @@ export async function chat({ message, history }) {
         { role: 'user', content: message },
     ]
 
-    let response = await client.responses.create({ model: MODEL, input, tools })
+    let response = await createResponse({ model: MODEL, input, tools })
     let functionCalls = response.output.filter((item) => item.type === 'function_call')
     let iterations = 0
 
     while (functionCalls.length > 0 && iterations < MAX_TOOL_ITERATIONS) {
         const toolOutputs = await resolveFunctionCalls(functionCalls)
         input = [...input, ...response.output, ...toolOutputs]
-        response = await client.responses.create({ model: MODEL, input, tools })
+        response = await createResponse({ model: MODEL, input, tools })
         functionCalls = response.output.filter((item) => item.type === 'function_call')
         iterations++
     }

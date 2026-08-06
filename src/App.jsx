@@ -89,13 +89,13 @@ export default function App() {
           <FormSection style={{ flexShrink: 0 }}>
             <form onSubmit={sendMessage}>
               <Stack direction="column">
-                {modelOptions.length > 0 && (
+                {/*{modelOptions.length > 0 && (
                   <Select
                     label="models"
                     options={modelOptions}
                     onChange={(e) => setSelectedModel(e.target.value)}
                   />
-                )}
+                )}*/}
                 <Stack spacing="none">
                   <input
                     style={{
@@ -129,5 +129,24 @@ export default function App() {
         </Typography>
       )}
     </ContentBlock>
+    //<div>
+    //  <h1>Product Chat</h1>
+    //  {error && <p style={{ color: 'red' }}>{error}</p>}
+    //  <ul>
+    //    {messages.map((m, i) => (
+    //      <li key={i}>
+    //        <strong>{m.role}:</strong> {m.text}
+    //      </li>
+    //    ))}
+    //  </ul>
+    //  <form onSubmit={sendMessage}>
+    //    <input
+    //      value={input}
+    //      onChange={(e) => setInput(e.target.value)}
+    //      placeholder="Ask about the product..."
+    //    />
+    //    <button type="submit">Send</button>
+    //  </form>
+    //</div>
   )
 }

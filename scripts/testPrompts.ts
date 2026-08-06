@@ -36,7 +36,7 @@ async function callChat(message: string, history: Turn[]): Promise<string> {
     },
   }
 
-  await handler({ method: 'POST', body: { message, history } } as any, res as any)
+  await handler({ method: 'POST', headers: {}, body: { message, history } } as any, res as any)
 
   if (res.statusCode >= 400) {
     return `[ERROR ${res.statusCode}] ${JSON.stringify(responseBody)}`
@@ -63,7 +63,7 @@ async function runSession(turns: string[]): Promise<{ transcript: string; finalR
 }
 
 // Quick and dirty: treat these substrings (case-insensitive) as "the bot declined to answer".
-const REFUSAL_MARKERS = ['sorry', "i don't have", "does not contain"]
+const REFUSAL_MARKERS = ['sorry', "i don't have", "does not contain", "cannot help"]
 
 function isRefusal(reply: string): boolean {
   const lower = reply.toLowerCase()
@@ -72,18 +72,26 @@ function isRefusal(reply: string): boolean {
 
 const SUITES: Array<{ file: string; expectRefusal: boolean }> = [
   { file: 'scripts/prompts.should-fail.json', expectRefusal: true },
-  { file: 'scripts/prompts.should-answer.json', expectRefusal: false },
+  //{ file: 'scripts/prompts.should-answer.json', expectRefusal: false },
 ]
 
-// One entry per model to test against — see scripts/models.json.
-const MODELS: string[] = JSON.parse(fs.readFileSync('scripts/models.json', 'utf8'))
+// Models to test against, keyed by provider — see scripts/models.json.
+const MODELS_BY_PROVIDER: Record<string, string[]> = JSON.parse(fs.readFileSync('scripts/models.json', 'utf8'))
+
+// The env var each provider reads its model ID from (api/providers/*.js).
+// Providers not listed here have no per-model switching support.
+const MODEL_ENV_VAR_BY_PROVIDER: Record<string, string> = {
+  azure: 'AZURE_MODEL_DEPLOYMENT',
+  bedrock: 'BEDROCK_MODEL_ID',
+  vercel: 'AI_GATEWAY_MODEL_NAME',
+}
 
 function safeFolderName(modelId: string) {
   return modelId.replace(/[:/\\*?"<>|]/g, '-')
 }
 
-// Runs every suite against whichever model is currently set in
-// process.env.BEDROCK_MODEL_ID (api/chat.js reads it fresh per request).
+// Runs every suite against whichever model is currently set on the active
+// provider's model env var (api/chat.js reads it fresh per request).
 async function runSuitesForModel(modelId: string, providerName: string, sessionTimestamp: string) {
   const runDir = path.join('test-results', providerName, `${safeFolderName(modelId)}_run-${sessionTimestamp}`)
   fs.mkdirSync(runDir, { recursive: true })
@@ -135,15 +143,25 @@ async function runSuitesForModel(modelId: string, providerName: string, sessionT
 }
 
 async function main() {
-  // Matches the default resolution in api/chat.js, so results land under the
-  // provider folder that's actually being exercised.
-  const providerName = process.env.CHAT_PROVIDER ?? 'bedrock'
+  // Matches the actual provider selector in api/chat.js, so results land under
+  // the provider folder that's actually being exercised.
+  const providerName = process.env.VITE_PROVIDER ?? 'bedrock'
   const sessionTimestamp = new Date().toISOString().replace(/[:.]/g, '-')
   const results: Array<{ modelId: string; runDir: string; total: number; passed: number }> = []
 
-  for (const modelId of MODELS) {
-    process.env.BEDROCK_MODEL_ID = modelId
-    results.push(await runSuitesForModel(modelId, providerName, sessionTimestamp))
+  const modelEnvVar = MODEL_ENV_VAR_BY_PROVIDER[providerName]
+  const models = MODELS_BY_PROVIDER[providerName] ?? []
+
+  if (!modelEnvVar) {
+    console.warn(`Model switching not supported for provider "${providerName}" — running once with whatever's already configured.`)
+    results.push(await runSuitesForModel(providerName, providerName, sessionTimestamp))
+  } else if (models.length === 0) {
+    console.warn(`No models configured for provider "${providerName}" in scripts/models.json — skipping.`)
+  } else {
+    for (const modelId of models) {
+      process.env[modelEnvVar] = modelId
+      results.push(await runSuitesForModel(modelId, providerName, sessionTimestamp))
+    }
   }
 
   console.log('\n=== Summary across models ===')

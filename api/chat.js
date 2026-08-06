@@ -1,11 +1,9 @@
 import * as bedrock from './providers/bedrock.js'
-import * as bedrockMantle from './providers/bedrock-mantle.js'
 import * as azure from './providers/azure.js'
 import * as vercel from './providers/vercel.js'
 
 const PROVIDERS = {
     bedrock,
-    'bedrock-mantle': bedrockMantle,
     azure,
     vercel,
 }
