@@ -9,9 +9,9 @@ import {
   ModelNotReadyException,
 } from '@aws-sdk/client-bedrock-runtime'
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime'
-import { TOOLS } from './tools.js'
-import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from './config.js'
-import { withRetry } from './retry.js'
+import { TOOLS } from '../utils/tools.js'
+import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from '../utils/config.js'
+import { withRetry } from '../utils/retry.js'
 
 const REGION = process.env.AWS_REGION ?? 'ap-southeast-2'
 const KNOWLEDGE_BASE_ID = process.env.BEDROCK_KNOWLEDGE_BASE_ID ?? '<BEDROCK_KNOWLEDGE_BASE_ID>'

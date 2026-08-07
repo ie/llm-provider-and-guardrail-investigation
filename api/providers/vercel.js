@@ -1,8 +1,8 @@
 import OpenAI from 'openai'
-import { TOOLS, resolveFunctionCalls } from './tools.js'
-import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from './config.js'
-import { withRetry } from './retry.js'
-import { shieldPrompt } from './azureContext.js'
+import { TOOLS, resolveFunctionCalls } from '../utils/tools.js'
+import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from '../utils/config.js'
+import { withRetry } from '../utils/retry.js'
+import { shieldPrompt } from '../utils/azureContext.js'
 
 const client = new OpenAI({
     apiKey: process.env.AI_GATEWAY_API_KEY,

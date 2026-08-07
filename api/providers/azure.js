@@ -1,9 +1,9 @@
 import { AIProjectClient } from '@azure/ai-projects'
 import { DefaultAzureCredential } from '@azure/identity'
-import { TOOLS, resolveFunctionCalls } from './tools.js'
-import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from './config.js'
-import { withRetry } from './retry.js'
-import { shieldPrompt } from './azureContext.js'
+import { TOOLS, resolveFunctionCalls } from '../utils/tools.js'
+import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from '../utils/config.js'
+import { withRetry } from '../utils/retry.js'
+import { shieldPrompt } from '../utils/azureContext.js'
 
 const PROJECT_ENDPOINT = process.env.AZURE_AI_PROJECT_ENDPOINT ?? '<AZURE_AI_PROJECT_ENDPOINT>'
 
@@ -71,7 +71,7 @@ export async function chat({ message, history, modelId }) {
     ]
 
     const createResponse = () =>
-        withRetry(() => openai.responses.create({ model: MODEL_ID, input, tools }), (err) => err?.status === 429)
+        withRetry(() => openai.responses.create({ model: MODEL_ID, input }), (err) => err?.status === 429)
 
     let response = await createResponse()
     let functionCalls = response.output.filter((item) => item.type === 'function_call')

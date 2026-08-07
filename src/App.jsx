@@ -12,18 +12,29 @@ import {
 import { useState } from 'react'
 
 import MODELS from '../scripts/models.json'
-const MODEL_NAMES = MODELS[import.meta.env.VITE_PROVIDER]
+
+const providerOptions = Object.keys(MODELS)
+  .filter((p) => p !== 'openai')
+  .map((p) => ({ label: p, value: p }))
 
 export default function App() {
-  /*
-    * 
+  const [messages, setMessages] = useState([
     { role: 'user', text: 'Hi' },
     { role: 'bot', text: 'Hello' },
-   */
-  const [messages, setMessages] = useState([])
+  ])
   const [input, setInput] = useState('')
+  const [selectedProvider, setSelectedProvider] = useState(
+    import.meta.env.VITE_PROVIDER ?? providerOptions[0].value,
+  )
   const [selectedModel, setSelectedModel] = useState('')
   const [error, setError] = useState('')
+
+  const modelOptions = (MODELS[selectedProvider] ?? []).map((m) => ({
+    label: m,
+    value: m,
+  }))
+  // falls back to the first option so the sent model matches the displayed one
+  const activeModel = selectedModel || modelOptions[0]?.value || ''
 
   async function sendMessage(e) {
     e.preventDefault()
@@ -42,7 +53,8 @@ export default function App() {
           role: m.role === 'bot' ? 'assistant' : 'user',
           content: m.text,
         })),
-        modelId: selectedModel,
+        provider: selectedProvider,
+        modelId: activeModel,
       }),
     })
     const data = await res.json()
@@ -50,8 +62,6 @@ export default function App() {
       setError(`${res.status} ${data.details || data.error}`)
     } else setMessages((prev) => [...prev, { role: 'bot', text: data.reply }])
   }
-
-  const modelOptions = MODEL_NAMES?.map((m) => ({ label: m, value: m }))
 
   // TODO: When no input, default to center title + chat section
   // Then expand to the title + messages + chat section
@@ -83,19 +93,32 @@ export default function App() {
                 {m.text}
               </TooltipPopup>
             ))}
+            {error && <Typography style={{ color: 'red' }}>{error}</Typography>}
           </Stack>
 
           {/* Input */}
           <FormSection style={{ flexShrink: 0 }}>
             <form onSubmit={sendMessage}>
               <Stack direction="column">
-                {/*{modelOptions.length > 0 && (
+                <Stack>
                   <Select
-                    label="models"
-                    options={modelOptions}
-                    onChange={(e) => setSelectedModel(e.target.value)}
+                    label="provider"
+                    options={providerOptions}
+                    value={selectedProvider}
+                    onChange={(e) => {
+                      setSelectedProvider(e.target.value)
+                      setSelectedModel('')
+                    }}
                   />
-                )}*/}
+                  {modelOptions.length > 0 && (
+                    <Select
+                      label="models"
+                      options={modelOptions}
+                      value={activeModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                    />
+                  )}
+                </Stack>
                 <Stack spacing="none">
                   <input
                     style={{
@@ -122,12 +145,6 @@ export default function App() {
       <Button variant="secondary" onClick={() => setMessages([])}>
         + New
       </Button>
-
-      {error && (
-        <Typography color="red" style={{ color: 'red' }}>
-          {error}
-        </Typography>
-      )}
     </ContentBlock>
     //<div>
     //  <h1>Product Chat</h1>

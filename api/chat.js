@@ -56,25 +56,30 @@ export default async function handler(req, res) {
         return
     }
 
-    const providerName = process.env.VITE_PROVIDER
-    if (!providerName) {
-        res.status(500).json({ error: 'VITE_PROVIDER environment variable is not set' })
-        return
-    }
-
-    const provider = PROVIDERS[providerName]
-    if (!provider) {
-        res.status(500).json({ error: `Unknown chat provider: ${providerName}` })
-        return
-    }
-
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown'
     if (isRateLimited(ip)) {
         res.status(429).json({ error: 'Too many requests, please slow down' })
         return
     }
 
-    const { message, history, modelId } = req.body ?? {}
+    const { message, history, modelId, provider } = req.body ?? {}
+
+    if (provider !== undefined && typeof provider !== 'string') {
+        res.status(400).json({ error: 'provider must be a string' })
+        return
+    }
+
+    const providerName = provider ?? process.env.VITE_PROVIDER
+    if (!providerName) {
+        res.status(500).json({ error: 'VITE_PROVIDER environment variable is not set' })
+        return
+    }
+
+    const providerModule = PROVIDERS[providerName]
+    if (!providerModule) {
+        res.status(400).json({ error: `Unknown chat provider: ${providerName}` })
+        return
+    }
 
     if (typeof message !== 'string' || message.trim() === '') {
         res.status(400).json({ error: 'message must be a non-empty string' })
@@ -92,7 +97,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        const reply = await withTimeout(provider.chat({ message, history: validatedHistory, modelId }), CHAT_TIMEOUT_MS)
+        const reply = await withTimeout(providerModule.chat({ message, history: validatedHistory, modelId }), CHAT_TIMEOUT_MS)
         res.status(200).json({ reply })
     } catch (err) {
         if (err.message === 'TIMEOUT') {
