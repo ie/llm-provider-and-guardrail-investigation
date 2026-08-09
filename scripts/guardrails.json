@@ -1,0 +1,5 @@
+{
+  "default": "azure",
+  "options": ["none", "azure", "bedrock"],
+  "providers": ["openai", "vercel"]
+}

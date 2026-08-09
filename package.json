@@ -17,6 +17,7 @@
     "@aws/bedrock-token-generator": "^1.1.0",
     "@azure/ai-projects": "^2.3.1",
     "@azure/identity": "^4.5.0",
+    "ai": "^7.0.56",
     "openai": "^6.49.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"

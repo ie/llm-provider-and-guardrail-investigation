@@ -1,11 +1,14 @@
 import * as bedrock from './providers/bedrock.js'
 import * as azure from './providers/azure.js'
 import * as vercel from './providers/vercel.js'
+import * as openai from './providers/openai.js'
+import { GUARDRAILS } from './utils/guardrails.js'
 
 const PROVIDERS = {
     bedrock,
     azure,
     vercel,
+    openai,
 }
 
 const MAX_MESSAGE_LENGTH = 4000
@@ -62,10 +65,14 @@ export default async function handler(req, res) {
         return
     }
 
-    const { message, history, modelId, provider } = req.body ?? {}
+    const { message, history, modelId, provider, guardrail } = req.body ?? {}
 
     if (provider !== undefined && typeof provider !== 'string') {
         res.status(400).json({ error: 'provider must be a string' })
+        return
+    }
+    if (guardrail !== undefined && typeof guardrail !== 'string') {
+        res.status(400).json({ error: 'guardrail must be a string' })
         return
     }
 
@@ -78,6 +85,13 @@ export default async function handler(req, res) {
     const providerModule = PROVIDERS[providerName]
     if (!providerModule) {
         res.status(400).json({ error: `Unknown chat provider: ${providerName}` })
+        return
+    }
+
+    // mirrors scripts/guardrails.json default; only openai/vercel act on it
+    const guardrailName = guardrail ?? process.env.GUARDRAIL ?? 'azure'
+    if (!GUARDRAILS[guardrailName]) {
+        res.status(400).json({ error: `Unknown guardrail: ${guardrailName}` })
         return
     }
 
@@ -97,7 +111,10 @@ export default async function handler(req, res) {
     }
 
     try {
-        const reply = await withTimeout(providerModule.chat({ message, history: validatedHistory, modelId }), CHAT_TIMEOUT_MS)
+        const reply = await withTimeout(
+            providerModule.chat({ message, history: validatedHistory, modelId, guardrail: guardrailName }),
+            CHAT_TIMEOUT_MS,
+        )
         res.status(200).json({ reply })
     } catch (err) {
         if (err.message === 'TIMEOUT') {

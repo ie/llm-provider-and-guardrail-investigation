@@ -31,7 +31,6 @@ async function retrieveContext(query) {
             body: JSON.stringify({ search: query, top: 5 }),
         },
     )
-  console.log({response})
 
     if (!response.ok) {
         throw new Error(`Azure AI Search request failed: ${response.status} ${await response.text()}`)
@@ -71,7 +70,7 @@ export async function chat({ message, history, modelId }) {
     ]
 
     const createResponse = () =>
-        withRetry(() => openai.responses.create({ model: MODEL_ID, input }), (err) => err?.status === 429)
+        withRetry(() => openai.responses.create({ model: MODEL_ID, input, tools }), (err) => err?.status === 429)
 
     let response = await createResponse()
     let functionCalls = response.output.filter((item) => item.type === 'function_call')
