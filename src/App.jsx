@@ -12,10 +12,11 @@ import {
 import { useState } from 'react'
 
 import MODELS from '../scripts/models.json'
+import GUARDRAILS from '../scripts/guardrails.json'
 
-const providerOptions = Object.keys(MODELS)
-  .filter((p) => p !== 'openai')
-  .map((p) => ({ label: p, value: p }))
+const providerOptions = Object.keys(MODELS).map((p) => ({ label: p, value: p }))
+
+const guardrailOptions = GUARDRAILS.options.map((g) => ({ label: g, value: g }))
 
 export default function App() {
   const [messages, setMessages] = useState([
@@ -27,13 +28,15 @@ export default function App() {
     import.meta.env.VITE_PROVIDER ?? providerOptions[0].value,
   )
   const [selectedModel, setSelectedModel] = useState('')
+  const [selectedGuardrail, setSelectedGuardrail] = useState(GUARDRAILS.default)
   const [error, setError] = useState('')
 
   const modelOptions = (MODELS[selectedProvider] ?? []).map((m) => ({
     label: m,
     value: m,
   }))
-  // falls back to the first option so the sent model matches the displayed one
+  const guardrailSwitchable = GUARDRAILS.providers.includes(selectedProvider)
+  const activeGuardrail = guardrailSwitchable ? selectedGuardrail : 'none'
   const activeModel = selectedModel || modelOptions[0]?.value || ''
 
   async function sendMessage(e) {
@@ -55,6 +58,7 @@ export default function App() {
         })),
         provider: selectedProvider,
         modelId: activeModel,
+        ...(guardrailSwitchable && { guardrail: selectedGuardrail }),
       }),
     })
     const data = await res.json()
@@ -74,9 +78,13 @@ export default function App() {
           spacing="s"
           style={{ height: '90vh' }}
         >
-          <Typography variant="h3" component="h5" hasSenkeiLine>
-            Lexus Chat
-          </Typography>
+          {/* Title */}
+          <Stack spacing="4xs">
+            <Typography variant="h3" component="h5" hasSenkeiLine>
+              Lexus Chat
+            </Typography>
+            <Typography variant="superscript">prototype</Typography>
+          </Stack>
 
           {/* Chat */}
           <Stack
@@ -93,14 +101,18 @@ export default function App() {
                 {m.text}
               </TooltipPopup>
             ))}
-            {error && <Typography style={{ color: 'red' }}>{error}</Typography>}
+            {error && (
+              <Typography className="chat-error" variant="b2">
+                {error}
+              </Typography>
+            )}
           </Stack>
 
           {/* Input */}
-          <FormSection style={{ flexShrink: 0 }}>
-            <form onSubmit={sendMessage}>
+          <form onSubmit={sendMessage}>
+            <FormSection>
               <Stack direction="column">
-                <Stack>
+                <Stack className="selectGroup">
                   <Select
                     label="provider"
                     options={providerOptions}
@@ -118,52 +130,38 @@ export default function App() {
                       onChange={(e) => setSelectedModel(e.target.value)}
                     />
                   )}
+                  <Select
+                    label="guardrail"
+                    options={guardrailOptions}
+                    value={activeGuardrail}
+                    disabled={!guardrailSwitchable}
+                    onChange={(e) =>
+                      guardrailSwitchable &&
+                      setSelectedGuardrail(e.target.value)
+                    }
+                  />
                 </Stack>
+
                 <Stack spacing="none">
                   <input
-                    style={{
-                      flexGrow: 1,
-                      background: 'none',
-                      color: 'white',
-                      fontSize: '1.25rem',
-                      border: 'none',
-                    }}
+                    className="chat-input"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask about the product..."
+                    placeholder="Ask about Lexus..."
                   />
                   <Button variant="primary" type="submit">
                     Send
                   </Button>
                 </Stack>
               </Stack>
-            </form>
-          </FormSection>
+            </FormSection>
+          </form>
         </Stack>
-      </ContentBlockInnerContainer>
 
-      <Button variant="secondary" onClick={() => setMessages([])}>
-        + New
-      </Button>
+        <Button variant="secondary" onClick={() => setMessages([])}>
+          + New
+        </Button>
+      </ContentBlockInnerContainer>
     </ContentBlock>
-    //<div>
-    //  <h1>Product Chat</h1>
-    //  {error && <p style={{ color: 'red' }}>{error}</p>}
-    //  <ul>
-    //    {messages.map((m, i) => (
-    //      <li key={i}>
-    //        <strong>{m.role}:</strong> {m.text}
-    //      </li>
-    //    ))}
-    //  </ul>
-    //  <form onSubmit={sendMessage}>
-    //    <input
-    //      value={input}
-    //      onChange={(e) => setInput(e.target.value)}
-    //      placeholder="Ask about the product..."
-    //    />
-    //    <button type="submit">Send</button>
-    //  </form>
-    //</div>
   )
 }

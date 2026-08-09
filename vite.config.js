@@ -52,7 +52,7 @@ const apiMiddleware = {
 export default defineConfig(({ mode }) => {
     // Vite never exposes .env* files to process.env for server-side code (only to
     // import.meta.env for the client bundle) — load them manually so api/chat.js
-    // can read AWS_REGION / BEDROCK_* via process.env during `npm run dev`.
+    // can read AWS_REGION / BEDROCK_* via process.env during `yarn dev`.
     Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
 
     return {

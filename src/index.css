@@ -3,3 +3,23 @@ html, body {
   margin: 0;
   padding: 0;
 }
+
+.chat-input {
+  flex-grow: 1;
+  background: none;
+  color: inherit;
+  font-size: 1rem;
+  /* transparent rather than none, so focus doesn't shift the layout by 1px */
+  border: none;
+  border-bottom: 1px solid transparent;
+  outline: none;
+}
+
+.chat-input:focus {
+  border-bottom-color: currentColor;
+}
+
+.chat-error {
+  /* TODO: Use dls tokens */
+  color: red; 
+}

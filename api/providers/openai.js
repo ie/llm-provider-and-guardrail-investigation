@@ -1,8 +1,10 @@
+// OPENAI powered by Vercel AI Gateway for now
+
 import OpenAI from 'openai'
 import { TOOLS, resolveFunctionCalls } from '../utils/tools.js'
 import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from '../utils/config.js'
 import { withRetry } from '../utils/retry.js'
-import { shieldPrompt } from '../utils/azureContext.js'
+import { applyGuardrail } from '../utils/guardrails.js'
 
 const client = new OpenAI({
     apiKey: process.env.AI_GATEWAY_API_KEY,
@@ -13,23 +15,6 @@ const AZURE_SEARCH_ENDPOINT = process.env.AZURE_SEARCH_ENDPOINT ?? '<AZURE_SEARC
 const AZURE_SEARCH_INDEX_NAME = process.env.AZURE_SEARCH_INDEX_NAME ?? '<AZURE_SEARCH_INDEX_NAME>'
 const AZURE_SEARCH_CONTENT_FIELD = process.env.AZURE_SEARCH_CONTENT_FIELD ?? 'content'
 const AZURE_SEARCH_API_KEY = process.env.AZURE_SEARCH_API_KEY ?? '<AZURE_SEARCH_QUERY_KEY>'
-
-// If using Bedrock's Guardrail in a headless way
-//const bedrockRuntime = new BedrockRuntimeClient({ region: REGION })
-//const GUARDRAIL_ID = process.env.BEDROCK_GUARDRAIL_ID ?? '<BEDROCK_GUARDRAIL_ID>'
-//const GUARDRAIL_VERSION = process.env.BEDROCK_GUARDRAIL_VERSION ?? '<BEDROCK_GUARDRAIL_VERSION>'
-//async function applyGuardRail(userPrompt, documents = []) {
-//    const response = await bedrockRuntime.send(new ApplyGuardrailCommand({
-//        guardrailIdentifier: GUARDRAIL_ID,
-//        guardrailVersion: GUARDRAIL_VERSION,
-//        source: 'INPUT',
-//        content: [
-//            { text: { text: userPrompt, qualifiers: ['query'] } },
-//            ...documents.map((doc) => ({ text: { text: doc, qualifiers: ['grounding_source'] } })),
-//        ],
-//    }))
-//    return response.action === 'GUARDRAIL_INTERVENED'
-//}
 
 async function createResponse(params) {
     return withRetry(() => client.responses.create(params), (err) => err?.status === 429)
@@ -59,17 +44,15 @@ async function retrieveContext(query) {
         .join('\n\n')
 }
 
-export async function chat({ message, history, modelId }) {
+export async function chat({ message, history, modelId, guardrail }) {
     const MODEL = modelId || process.env.AI_GATEWAY_MODEL_NAME || ""
 
     const context = await retrieveContext(message)
+    const documents = context ? [context] : []
 
-    const shieldResult = await shieldPrompt(message, context ? [context] : [])
-    const attackDetected =
-        shieldResult.userPromptAnalysis?.attackDetected || shieldResult.documentsAnalysis?.some((doc) => doc.attackDetected)
-
-    if (attackDetected) {
-        return `${REFUSAL_MESSAGE}`
+    const inputCheck = await applyGuardrail(guardrail, message, { documents, source: 'INPUT' })
+    if (inputCheck.blocked) {
+        return REFUSAL_MESSAGE
     }
 
     const tools = Object.values(TOOLS).map((tool) => tool.definition)
@@ -97,5 +80,12 @@ export async function chat({ message, history, modelId }) {
         iterations++
     }
 
-    return response.output_text
+    const reply = response.output_text
+
+    const outputCheck = await applyGuardrail(guardrail, reply, { documents, source: 'OUTPUT', query: message })
+    if (outputCheck.blocked) {
+        return REFUSAL_MESSAGE
+    }
+
+    return reply
 }
