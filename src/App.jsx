@@ -149,7 +149,7 @@ export default function App() {
           </form>
         </Stack>
 
-        <div style={{ marginTop: '1rem' , textAlign: 'center'}}>
+        <div style={{ marginTop: '1rem', textAlign: 'center' }}>
           <Button variant="secondary" onClick={() => setMessages([])}>
             + New Chat
           </Button>
