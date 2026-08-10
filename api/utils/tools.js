@@ -28,3 +28,20 @@ export const TOOLS = {
     handler: async ({ location } = {}) => fetchLocationSuggestion(location),
   },
 }
+
+export async function resolveFunctionCalls(functionCalls) {
+    return Promise.all(
+        functionCalls.map(async (call) => {
+            const tool = TOOLS[call.name]
+            if (!tool) {
+                return { type: 'function_call_output', call_id: call.call_id, output: `Unknown tool: ${call.name}` }
+            }
+            try {
+                const output = await tool.handler(JSON.parse(call.arguments || '{}'))
+                return { type: 'function_call_output', call_id: call.call_id, output: String(output) }
+            } catch (err) {
+                return { type: 'function_call_output', call_id: call.call_id, output: `Error running ${call.name}: ${err.message}` }
+            }
+        }),
+    )
+}

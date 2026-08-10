@@ -18,8 +18,18 @@ The azure/bedrock-mantle files are agent "equivalent" version code. They require
 ## Quickstart
 
 ```bash
-npm run dev
+yarn dev
 ```
+
+## Creating guardrails
+
+### AWS Bedrock
+
+1. Create a guardrail, save the ID and version
+
+### Azure Foundry | Guardrail
+
+1. Create a guardrail and the model to apply to. Make sure `jailbreak` detection checkbox is ticked.
 
 ## Testing
 
@@ -27,5 +37,5 @@ The first version of this repo uses the json files in scripts/ to automate feedi
 It is not guaranteed the test is working after numerous commits.
 
 ```bash
-npm run test:prompts
+yarn test:prompts
 ```
