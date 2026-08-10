@@ -6,9 +6,8 @@ import {
   TooltipPopup,
   Typography,
   FormSection,
-  Box,
   Select,
-} from '@tmca/lexus-kit'
+} from './components'
 import { useState } from 'react'
 
 import MODELS from '../scripts/models.json'
@@ -72,12 +71,7 @@ export default function App() {
   return (
     <ContentBlock>
       <ContentBlockInnerContainer width="8col">
-        <Stack
-          component={Box}
-          direction="column"
-          spacing="s"
-          style={{ height: '90vh' }}
-        >
+        <Stack direction="column" spacing="s" className="h-[90vh]">
           {/* Title */}
           <Stack spacing="4xs">
             <Typography variant="h3" component="h5" hasSenkeiLine>
@@ -87,10 +81,7 @@ export default function App() {
           </Stack>
 
           {/* Chat */}
-          <Stack
-            direction="column"
-            style={{ flex: '1 1 auto', overflowY: 'auto' }}
-          >
+          <Stack direction="column" className="flex-auto overflow-y-auto">
             {messages.map((m, i) => (
               <TooltipPopup
                 key={i}
@@ -102,7 +93,7 @@ export default function App() {
               </TooltipPopup>
             ))}
             {error && (
-              <Typography className="chat-error" variant="b2">
+              <Typography className="text-danger" variant="b2">
                 {error}
               </Typography>
             )}
@@ -112,7 +103,7 @@ export default function App() {
           <form onSubmit={sendMessage}>
             <FormSection>
               <Stack direction="column">
-                <Stack className="selectGroup">
+                <Stack spacing="xs">
                   <Select
                     label="provider"
                     options={providerOptions}
@@ -144,7 +135,7 @@ export default function App() {
 
                 <Stack spacing="none">
                   <input
-                    className="chat-input"
+                    className="flex-1 border-b border-transparent bg-transparent text-base text-inherit outline-none focus:border-current"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Ask about Lexus..."
@@ -158,9 +149,11 @@ export default function App() {
           </form>
         </Stack>
 
-        <Button variant="secondary" onClick={() => setMessages([])}>
-          + New
-        </Button>
+        <div style={{ marginTop: '1rem' , textAlign: 'center'}}>
+          <Button variant="secondary" onClick={() => setMessages([])}>
+            + New Chat
+          </Button>
+        </div>
       </ContentBlockInnerContainer>
     </ContentBlock>
   )

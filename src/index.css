@@ -1,25 +1,56 @@
-html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
+@import 'tailwindcss';
+
+/* Box/Stack build these class names from props, so the scanner can't see them. */
+@source inline(
+    "{p,px,py,pt,pr,pb,pl,gap}-{none,4xs,3xs,2xs,xs,s,m,l,xl,2xl,3xl,4xl,5xl,least,even-less,less,default,more,even-more,most}"
+);
+
+@theme {
+    --spacing-none: 0px;
+    --spacing-4xs: 4px;
+    --spacing-3xs: 8px;
+    --spacing-2xs: 12px;
+    --spacing-xs: 16px;
+    --spacing-s: 24px;
+    --spacing-m: 32px;
+    --spacing-l: 40px;
+    --spacing-xl: 48px;
+    --spacing-2xl: 64px;
+    --spacing-3xl: 80px;
+    --spacing-4xl: 96px;
+    --spacing-5xl: 128px;
+
+    --spacing-least: 8px;
+    --spacing-even-less: 12px;
+    --spacing-less: 16px;
+    --spacing-default: 24px;
+    --spacing-more: 32px;
+    --spacing-even-more: 48px;
+    --spacing-most: 64px;
+
+    /* Own namespace — max-w-* falls back to --spacing-*, so t-shirt names collide. */
+    --container-6col: 40rem;
+    --container-8col: 56rem;
+    --container-10col: 72rem;
+    --container-12col: 80rem;
+
+    /* PLACEHOLDER — light theme, replace with brand hexes */
+    --color-canvas: #ffffff;
+    --color-surface: #f2f2f2;
+    --color-fg: #1a1a1a;
+    --color-fg-muted: #6b6b6b;
+    --color-line: #d4d4d4;
+    --color-accent: #8c7853;
+    --color-danger: #c0392b;
 }
 
-.chat-input {
-  flex-grow: 1;
-  background: none;
-  color: inherit;
-  font-size: 1rem;
-  /* transparent rather than none, so focus doesn't shift the layout by 1px */
-  border: none;
-  border-bottom: 1px solid transparent;
-  outline: none;
-}
-
-.chat-input:focus {
-  border-bottom-color: currentColor;
-}
-
-.chat-error {
-  /* TODO: Use dls tokens */
-  color: red; 
+/* PLACEHOLDER — dark theme, replace with brand hexes */
+[data-theme='dark'] {
+    --color-canvas: #101010;
+    --color-surface: #1c1c1c;
+    --color-fg: #f5f5f5;
+    --color-fg-muted: #9a9a9a;
+    --color-line: #3a3a3a;
+    --color-accent: #b9a06a;
+    --color-danger: #e05a4f;
 }

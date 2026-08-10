@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 // Dev server middleware to handle /api/chat requests
 const apiMiddleware = {
@@ -56,7 +57,7 @@ export default defineConfig(({ mode }) => {
     Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
 
     return {
-        plugins: [react(), apiMiddleware],
+        plugins: [react(), tailwindcss(), apiMiddleware],
         resolve: {
             dedupe: ['react', 'react-dom'],
         },
