@@ -8,13 +8,13 @@ import {
   FormSection,
   Select,
 } from './components'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { gateway } from '@ai-sdk/gateway'
 
 import MODELS from '../scripts/models.json'
 import GUARDRAILS from '../scripts/guardrails.json'
 
 const providerOptions = Object.keys(MODELS).map((p) => ({ label: p, value: p }))
-
 const guardrailOptions = GUARDRAILS.options.map((g) => ({ label: g, value: g }))
 
 export default function App() {
@@ -26,14 +26,41 @@ export default function App() {
   const [selectedProvider, setSelectedProvider] = useState(
     import.meta.env.VITE_PROVIDER ?? providerOptions[0].value,
   )
+  const [modelOptions, setModelOptions] = useState([])
   const [selectedModel, setSelectedModel] = useState('')
   const [selectedGuardrail, setSelectedGuardrail] = useState(GUARDRAILS.default)
   const [error, setError] = useState('')
 
-  const modelOptions = (MODELS[selectedProvider] ?? []).map((m) => ({
-    label: m,
-    value: m,
-  }))
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadModelOptions() {
+      if (selectedProvider === 'vercel') {
+        const availableModels = await gateway.getAvailableModels()
+        const languageOnlyAndUnder1Dollar = availableModels.models.filter(
+          (m) => ["amazon", "google", "openai"].includes(m.id.split('/')[0]) && m.modelType === 'language' && m.pricing.input <= 0.000001,
+        )
+        if (!cancelled) {
+          setModelOptions(
+            languageOnlyAndUnder1Dollar.map((m) => ({
+              label: m.id,
+              value: m.id,
+            })),
+          )
+        }
+      } else if (!cancelled) {
+        setModelOptions(
+          (MODELS[selectedProvider] ?? []).map((m) => ({ label: m, value: m })),
+        )
+      }
+    }
+
+    loadModelOptions()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedProvider])
+
   const guardrailSwitchable = GUARDRAILS.providers.includes(selectedProvider)
   const activeGuardrail = guardrailSwitchable ? selectedGuardrail : 'none'
   const activeModel = selectedModel || modelOptions[0]?.value || ''
@@ -74,7 +101,7 @@ export default function App() {
         <Stack direction="column" spacing="s" className="h-[90vh]">
           {/* Title */}
           <Stack spacing="4xs">
-            <Typography variant="h3" component="h5" hasSenkeiLine>
+            <Typography variant="h3" component="h5">
               Lexus Chat
             </Typography>
             <Typography variant="superscript">prototype</Typography>

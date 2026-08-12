@@ -50,12 +50,16 @@ export async function chat({ message, history, modelId, guardrail }) {
     const MODEL = modelId || process.env.AI_GATEWAY_MODEL_NAME || ''
 
     const context = await retrieveContext(message)
-    const documents = context ? [context] : []
+  const documents = context ? [context] : []
+  
+  const applyGuardrail = guardrail && guardrail !== "none";
 
+  if (applyGuardrail) {
     const inputCheck = await applyGuardrail(guardrail, message, { documents, source: 'INPUT' })
     if (inputCheck.blocked) {
         return REFUSAL_MESSAGE
     }
+  }
 
     const { text } = await generateText({
         model: MODEL,
@@ -72,10 +76,12 @@ export async function chat({ message, history, modelId, guardrail }) {
         maxRetries: MAX_RETRIES,
     })
 
+  if (applyGuardrail) {
     const outputCheck = await applyGuardrail(guardrail, text, { documents, source: 'OUTPUT', query: message })
     if (outputCheck.blocked) {
         return REFUSAL_MESSAGE
     }
+  }
 
     return text
 }
