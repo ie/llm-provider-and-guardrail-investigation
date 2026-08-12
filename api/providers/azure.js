@@ -1,7 +1,7 @@
 import { AIProjectClient } from '@azure/ai-projects'
 import { DefaultAzureCredential } from '@azure/identity'
 import { TOOLS, resolveFunctionCalls } from '../utils/tools.js'
-import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from '../utils/config.js'
+import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE, EMPTY_RESPONSE_MESSAGE } from '../utils/constants.js'
 import { withRetry } from '../utils/retry.js'
 import { shieldPrompt } from '../utils/azureContext.js'
 
@@ -85,8 +85,8 @@ export async function chat({ message, history, modelId }) {
     }
 
     if (response.status !== 'completed') {
-        return REFUSAL_MESSAGE
+      return EMPTY_RESPONSE_MESSAGE
     }
 
-    return response.output_text ?? REFUSAL_MESSAGE
+    return response.output_text ?? EMPTY_RESPONSE_MESSAGE
 }

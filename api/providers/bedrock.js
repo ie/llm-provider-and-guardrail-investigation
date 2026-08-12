@@ -10,7 +10,7 @@ import {
 } from '@aws-sdk/client-bedrock-runtime'
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime'
 import { TOOLS } from '../utils/tools.js'
-import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from '../utils/config.js'
+import { MAX_TOOL_ITERATIONS, EMPTY_RESPONSE_MESSAGE } from '../utils/constants.js'
 import { withRetry } from '../utils/retry.js'
 
 const REGION = process.env.AWS_REGION ?? 'ap-southeast-2'
@@ -107,5 +107,5 @@ export async function chat({ message, history, modelId }) {
     iterations++
   }
 
-  return converse.output?.message?.content?.find((block) => block.text)?.text ?? REFUSAL_MESSAGE
+  return converse.output?.message?.content?.find((block) => block.text)?.text ?? EMPTY_RESPONSE_MESSAGE
 }

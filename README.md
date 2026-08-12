@@ -2,7 +2,7 @@
 
 ## Context
 
-A proof of concept vite app that tests Azure/AWS Bedrock/Vercel APIs to implement a lexus-help chat bot
+A proof of concept vite app that tests Azure/AWS Bedrock/Vercel APIs to implement a Lexus-help chat bot
 
 The current working prototype is the @api/providers/vercel.js file. The only vercel about it is the vercel ai gate way baseurl.
 
@@ -30,6 +30,38 @@ yarn dev
 ### Azure Foundry | Guardrail
 
 1. Create a guardrail and the model to apply to. Make sure `jailbreak` detection checkbox is ticked.
+
+### gpt-oss-safeguard (Vercel AI Gateway)
+
+No portal setup. The policy is `api/utils/safeguardPolicy.js` — a versioned text file the model
+classifies against at inference time. Select `safeguard` in the guardrail dropdown, or set
+`GUARDRAIL=safeguard`. Override the model with `SAFEGUARD_MODEL` (default
+`openai/gpt-oss-safeguard-20b`; only the 20b variant is on the gateway).
+
+Smoke-test the model and policy without going through the chat path:
+
+```bash
+yarn smoke:safeguard
+```
+
+Measured 0.5-1.7s per check on default reasoning effort, so two checks add roughly 1-3.5s per
+turn against a 30s `CHAT_TIMEOUT_MS`.
+
+Warning: the gateway free tier rate-limits this model after a handful of calls. Paid credits are
+required to run the prompt suite or a demo.
+
+TODO:
+
+- Decide production behaviour for an unparseable verdict. `safeguard()` currently throws, which
+  surfaces as a 500. Production must choose fail open or fail closed.
+- Confirm whether the gateway forwards `reasoningEffort` to the upstream host. Rate limits blocked
+  that pass of `smoke:safeguard`.
+- Support layering guardrails. gpt-oss-safeguard is a classifier only — no PII masking, no
+  grounding score, no audit trail. Running it alongside `bedrock` needs `guardrail` to accept a
+  list in `api/chat.js`.
+- Re-enable the `should-answer` suite in `scripts/testPrompts.ts` before trusting any catch rate.
+  Without it the false-positive rate is unmeasured, and `off_scope` is the rule most likely to
+  reject legitimate questions.
 
 ## Testing
 

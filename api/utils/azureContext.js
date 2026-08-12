@@ -1,15 +1,11 @@
-import { DefaultAzureCredential } from '@azure/identity'
-
 const CONTENT_SAFETY_ENDPOINT = process.env.AZURE_CONTENT_SAFETY_ENDPOINT ?? '<AZURE_CONTENT_SAFETY_ENDPOINT>'
-
-const credential = new DefaultAzureCredential()
+const CONTENT_SAFETY_API_KEY = process.env.AZURE_CONTENT_SAFETY_API_KEY ?? '<AZURE_CONTENT_SAFETY_API_KEY>'
 
 export async function shieldPrompt(userPrompt, documents = []) {
-    const { token } = await credential.getToken('https://cognitiveservices.azure.com/.default')
     const response = await fetch(`${CONTENT_SAFETY_ENDPOINT}/contentsafety/text:shieldPrompt?api-version=2024-09-01`, {
         method: 'POST',
         headers: {
-            Authorization: `Bearer ${token}`,
+            'Ocp-Apim-Subscription-Key': CONTENT_SAFETY_API_KEY,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ userPrompt, documents }),

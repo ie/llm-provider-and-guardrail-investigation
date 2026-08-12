@@ -2,7 +2,7 @@
 
 import OpenAI from 'openai'
 import { TOOLS, resolveFunctionCalls } from '../utils/tools.js'
-import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from '../utils/config.js'
+import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from '../utils/constants.js'
 import { withRetry } from '../utils/retry.js'
 import { applyGuardrail } from '../utils/guardrails.js'
 

@@ -72,7 +72,7 @@ function isRefusal(reply: string): boolean {
 
 const SUITES: Array<{ file: string; expectRefusal: boolean }> = [
   { file: 'scripts/prompts.should-fail.json', expectRefusal: true },
-  //{ file: 'scripts/prompts.should-answer.json', expectRefusal: false },
+  { file: 'scripts/prompts.should-answer.json', expectRefusal: false },
 ]
 
 // Models to test against, keyed by provider — see scripts/models.json.

@@ -7,10 +7,13 @@ import {
 } from '@aws-sdk/client-bedrock-runtime'
 import { shieldPrompt } from './azureContext.js'
 import { withRetry } from './retry.js'
+import { generateText } from 'ai'
+import { SAFEGUARD_POLICY, POLICY_VERSION } from './safeguardPolicy.js'
 
 const REGION = process.env.AWS_REGION ?? 'ap-southeast-2'
 const GUARDRAIL_ID = process.env.BEDROCK_GUARDRAIL_ID ?? '<BEDROCK_GUARDRAIL_ID>'
 const GUARDRAIL_VERSION = process.env.BEDROCK_GUARDRAIL_VERSION ?? '<BEDROCK_GUARDRAIL_VERSION>'
+const SAFEGUARD_MODEL = process.env.SAFEGUARD_MODEL ?? 'openai/gpt-oss-safeguard-20b'
 
 const bedrockRuntime = new BedrockRuntimeClient({ region: REGION })
 
@@ -66,10 +69,69 @@ async function bedrock(text, { documents = [], source, query }) {
     }
 }
 
-export const GUARDRAILS = { none, azure, bedrock }
-
 export async function applyGuardrail(name, text, options) {
     const guardrail = GUARDRAILS[name]
     if (!guardrail) throw new Error(`Unknown guardrail: ${name}`)
-    return guardrail(text, options)
+
+    const started = Date.now()
+    const result = await guardrail(text, options)
+
+    // Providers discard everything but `blocked`, so log the verdict here for tuning
+    console.log(
+        [
+            '[guardrail]',
+            `name=${name}`,
+            `source=${options?.source}`,
+            `blocked=${result.blocked}`,
+            result.reason && `rule=${result.reason}`,
+            result.version && `policy=${result.version}`,
+            `ms=${Date.now() - started}`,
+            result.rationale && `rationale="${result.rationale}"`,
+        ]
+            .filter(Boolean)
+            .join(' '),
+    )
+
+    return result
 }
+
+
+async function safeguard(text, { source, documents = [], query }) {
+    const { text: verdict } = await generateText({
+        model: SAFEGUARD_MODEL,
+        system: SAFEGUARD_POLICY, // must state the JSON output shape
+        messages: [
+            {
+                role: 'user',
+                content:
+                    source === 'OUTPUT'
+                        ? `QUERY: ${query}\nSOURCES: ${documents.join('\n')}\nRESPONSE: ${text}`
+                        : `USER MESSAGE: ${text}`,
+            },
+        ],
+    })
+
+    // Dev behaviour: an unparseable verdict throws so it surfaces as a 500 instead of
+    // silently passing. Before production, return { blocked: false } (fail open) or
+    // { blocked: true } (fail closed) here instead.
+    const jsonStart = verdict.lastIndexOf('{')
+    let parsed
+    try {
+        if (jsonStart === -1) throw new Error('no JSON object in verdict')
+        parsed = JSON.parse(verdict.slice(jsonStart))
+    } catch (err) {
+        console.error(
+            `[guardrail] safeguard parse failed policy=${POLICY_VERSION} source=${source}: ${err.message}\nraw verdict: ${verdict}`,
+        )
+        throw new Error(`safeguard verdict unparseable: ${err.message}`)
+    }
+
+    return {
+        blocked: parsed.violation === 1,
+        reason: parsed.rule_id,
+        rationale: parsed.rationale,
+        version: POLICY_VERSION,
+    }
+}
+
+export const GUARDRAILS = { none, azure, bedrock, safeguard }
