@@ -1,7 +1,7 @@
 import { generateText, tool, jsonSchema, isStepCount } from 'ai'
 import { TOOLS } from '../tools/index.js'
-import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE } from '../constants.js'
-import { applyGuardrail } from '../guardrails/index.js'
+import { MAX_TOOL_ITERATIONS } from '../constants.js'
+import { applyGuardrail, refusal } from '../guardrails/index.js'
 import { retrieve } from '../retrieval/azureSearch.js'
 import { buildContextPrompt } from '../retrieval/prompt.js'
 
@@ -27,10 +27,10 @@ export async function chat({ message, history, modelId, guardrail }) {
 
   const inputCheck = await applyGuardrail(guardrail, message, { documents: chunks, source: 'INPUT' })
   if (inputCheck.blocked) {
-    return REFUSAL_MESSAGE
+    return refusal('INPUT', inputCheck)
   }
 
-  const { text } = await generateText({
+  const { text, toolResults } = await generateText({
     model: MODEL,
     ...(contextPrompt && { system: contextPrompt }),
     messages: [
@@ -45,10 +45,16 @@ export async function chat({ message, history, modelId, guardrail }) {
     maxRetries: MAX_RETRIES,
   })
 
-  const outputCheck = await applyGuardrail(guardrail, text, { documents: chunks, source: 'OUTPUT', query: message })
+  // toolResults spans all steps. Tool output reaches the model but is not in the search
+  // index, so an answer citing it is ungrounded unless offered as a grounding source too.
+  const outputCheck = await applyGuardrail(guardrail, text, {
+    documents: [...chunks, ...toolResults.map((result) => String(result.output))],
+    source: 'OUTPUT',
+    query: message,
+  })
   if (outputCheck.blocked) {
-    return REFUSAL_MESSAGE
+    return refusal('OUTPUT', outputCheck)
   }
 
-  return text
+  return { reply: text, blocked: false }
 }

@@ -2,9 +2,9 @@
 
 import OpenAI from 'openai'
 import { TOOLS, resolveFunctionCalls } from '../tools/index.js'
-import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE, EMPTY_RESPONSE_MESSAGE } from '../constants.js'
+import { MAX_TOOL_ITERATIONS, EMPTY_RESPONSE_MESSAGE } from '../constants.js'
 import { withRetry } from '../lib/retry.js'
-import { applyGuardrail } from '../guardrails/index.js'
+import { applyGuardrail, refusal } from '../guardrails/index.js'
 import { retrieve } from '../retrieval/azureSearch.js'
 import { buildContextPrompt } from '../retrieval/prompt.js'
 
@@ -25,7 +25,7 @@ export async function chat({ message, history, modelId, guardrail }) {
 
     const inputCheck = await applyGuardrail(guardrail, message, { documents: chunks, source: 'INPUT' })
     if (inputCheck.blocked) {
-        return REFUSAL_MESSAGE
+        return refusal('INPUT', inputCheck)
     }
 
     const tools = Object.values(TOOLS).map((tool) => tool.definition)
@@ -42,10 +42,14 @@ export async function chat({ message, history, modelId, guardrail }) {
     let response = await createResponse({ model: MODEL, input, tools })
     let functionCalls = response.output.filter((item) => item.type === 'function_call')
     let iterations = 0
+    // Tool output reaches the model but is not in the search index, so an answer citing it
+    // is ungrounded unless it is also offered as a grounding source on the output check.
+    const toolResults = []
 
     while (functionCalls.length > 0 && iterations < MAX_TOOL_ITERATIONS) {
         const toolOutputs = await resolveFunctionCalls(functionCalls)
         input = [...input, ...response.output, ...toolOutputs]
+        toolResults.push(...toolOutputs.map((toolOutput) => toolOutput.output))
         response = await createResponse({ model: MODEL, input, tools })
         functionCalls = response.output.filter((item) => item.type === 'function_call')
         iterations++
@@ -54,13 +58,17 @@ export async function chat({ message, history, modelId, guardrail }) {
     const reply = response.output_text
 
     if (response.status !== 'completed' || !reply) {
-        return EMPTY_RESPONSE_MESSAGE
+        return { reply: EMPTY_RESPONSE_MESSAGE, blocked: false }
     }
 
-    const outputCheck = await applyGuardrail(guardrail, reply, { documents: chunks, source: 'OUTPUT', query: message })
+    const outputCheck = await applyGuardrail(guardrail, reply, {
+        documents: [...chunks, ...toolResults],
+        source: 'OUTPUT',
+        query: message,
+    })
     if (outputCheck.blocked) {
-        return REFUSAL_MESSAGE
+        return refusal('OUTPUT', outputCheck)
     }
 
-    return reply
+    return { reply, blocked: false }
 }

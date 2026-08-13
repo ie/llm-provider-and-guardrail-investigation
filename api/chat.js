@@ -90,15 +90,10 @@ export default async function handler(req, res) {
         return
     }
 
-    // No default: an unconfigured deploy must fail rather than silently pick a guardrail.
-    // Select 'none' to run without one. GUARDRAIL takes a comma-separated list so a deploy
-    // can layer guardrails without a client change.
-    const guardrailSource = guardrail ?? process.env.GUARDRAIL
-    if (guardrailSource === undefined) {
-        res.status(500).json({ error: 'GUARDRAIL environment variable is not set' })
-        return
-    }
-
+    // Mirrors scripts/guardrails.json "default". Only reached by direct API callers —
+    // the UI always sends an explicit value. A list layers guardrails: they run in order
+    // and stop at the first block, so GUARDRAIL takes a comma-separated list too.
+    const guardrailSource = guardrail ?? process.env.GUARDRAIL ?? 'none'
     const guardrailNames = (Array.isArray(guardrailSource) ? guardrailSource : guardrailSource.split(',')).map(
         (name) => (typeof name === 'string' ? name.trim() : name),
     )
@@ -129,11 +124,13 @@ export default async function handler(req, res) {
     }
 
     try {
-        const reply = await withTimeout(
+        // Providers return { reply, blocked, reason } so a guardrail refusal is
+        // distinguishable from an answer — every block returns the same REFUSAL_MESSAGE.
+        const verdict = await withTimeout(
             providerModule.chat({ message, history: validatedHistory, modelId, guardrail: guardrailNames }),
             CHAT_TIMEOUT_MS,
         )
-        res.status(200).json({ reply })
+        res.status(200).json({ ...verdict, guardrail: guardrailNames.join(',') })
     } catch (err) {
         if (err.message === 'TIMEOUT') {
             res.status(504).json({ error: 'Request to provider timed out' })
