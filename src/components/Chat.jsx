@@ -12,10 +12,10 @@ import { cn } from './utils'
 import { Fragment, useState, useEffect } from 'react'
 
 import MODELS from '../../scripts/models.json'
-import GUARDRAILS from '../../scripts/guardrails.json'
+import SAFETY from '../../scripts/safety.json'
 
 const providerOptions = Object.keys(MODELS).map((p) => ({ label: p, value: p }))
-const guardrailOptions = GUARDRAILS.options.map((g) => ({ label: g, value: g }))
+const safetyOptions = SAFETY.options.map((s) => ({ label: s, value: s }))
 const INIT_PROVIDER = import.meta.env.VITE_PROVIDER ?? providerOptions[0].value
 
 // flex-grow is animatable, so the empty/expanded swap is driven by it rather than by
@@ -26,11 +26,12 @@ const TRANSITION =
 export default function Chat({ vercelModels }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
+  const [error, setError] = useState('')
+
   const [selectedProvider, setSelectedProvider] = useState(INIT_PROVIDER)
   const [modelOptions, setModelOptions] = useState([])
   const [selectedModel, setSelectedModel] = useState(modelOptions[0])
-  const [selectedGuardrail, setSelectedGuardrail] = useState(GUARDRAILS.default)
-  const [error, setError] = useState('')
+  const [selectedSafety, setSelectedSafety] = useState(SAFETY.default)
 
   useEffect(() => {
     const options =
@@ -61,9 +62,10 @@ export default function Chat({ vercelModels }) {
         })),
         provider: selectedProvider,
         modelId: activeModel,
-        guardrail: selectedGuardrail,
+        safety: selectedSafety,
       }),
     })
+    
     const data = await res.json()
     if (data.error) {
       setError(`${res.status} ${data.details || data.error}`)
@@ -89,11 +91,11 @@ export default function Chat({ vercelModels }) {
     <>
       <TooltipPopup pointerPosition="middle-right">{m.text}</TooltipPopup>
       <Typography variant="superscript">
-        {selectedProvider} - {activeModel} - {selectedGuardrail === "none" ? "No Guardrail" : selectedGuardrail}
+        {selectedProvider} - {activeModel} - {selectedSafety === "none" ? "No safety check" : selectedSafety}
       </Typography>
       {m.blocked && (
         <Typography variant="superscript">
-          blocked by guardrail{m.reason ? ` — ${m.reason}` : ''}
+          blocked by safety check{m.reason ? ` — ${m.reason}` : ''}
         </Typography>
       )}
     </>
@@ -169,10 +171,10 @@ export default function Chat({ vercelModels }) {
                     />
                   )}
                   <Select
-                    label="guardrail"
-                    options={guardrailOptions}
-                    value={selectedGuardrail}
-                    onChange={(e) => setSelectedGuardrail(e.target.value)}
+                    label="safety"
+                    options={safetyOptions}
+                    value={selectedSafety}
+                    onChange={(e) => setSelectedSafety(e.target.value)}
                   />
                 </Stack>
 

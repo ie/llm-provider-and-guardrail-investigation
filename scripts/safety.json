@@ -1,0 +1,4 @@
+{
+  "default": "none",
+  "options": ["none", "prompt-shield", "bedrock-guardrail", "oss-safeguard"]
+}

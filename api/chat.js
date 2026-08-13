@@ -1,9 +1,9 @@
-import * as bedrock from './providers/bedrock.js'
-import * as bedrockInline from './providers/bedrock-inline.js'
-import * as azure from './providers/azure.js'
-import * as vercel from './providers/vercel.js'
-import * as openai from './providers/openai.js'
-import { GUARDRAILS } from './guardrails/index.js'
+import * as bedrock from '../lib/providers/bedrock.js'
+import * as bedrockInline from '../lib/providers/bedrock-inline.js'
+import * as azure from '../lib/providers/azure.js'
+import * as vercel from '../lib/providers/vercel.js'
+import * as openai from '../lib/providers/openai.js'
+import { SAFETY_CHECKS } from '../lib/safety/index.js'
 
 const PROVIDERS = {
     bedrock,
@@ -67,14 +67,14 @@ export default async function handler(req, res) {
         return
     }
 
-    const { message, history, modelId, provider, guardrail } = req.body ?? {}
+    const { message, history, modelId, provider, safety } = req.body ?? {}
 
     if (provider !== undefined && typeof provider !== 'string') {
         res.status(400).json({ error: 'provider must be a string' })
         return
     }
-    if (guardrail !== undefined && typeof guardrail !== 'string' && !Array.isArray(guardrail)) {
-        res.status(400).json({ error: 'guardrail must be a string or an array of strings' })
+    if (safety !== undefined && typeof safety !== 'string' && !Array.isArray(safety)) {
+        res.status(400).json({ error: 'safety must be a string or an array of strings' })
         return
     }
 
@@ -90,21 +90,21 @@ export default async function handler(req, res) {
         return
     }
 
-    // Mirrors scripts/guardrails.json "default". Only reached by direct API callers —
-    // the UI always sends an explicit value. A list layers guardrails: they run in order
-    // and stop at the first block, so GUARDRAIL takes a comma-separated list too.
-    const guardrailSource = guardrail ?? process.env.GUARDRAIL ?? 'none'
-    const guardrailNames = (Array.isArray(guardrailSource) ? guardrailSource : guardrailSource.split(',')).map(
-        (name) => (typeof name === 'string' ? name.trim() : name),
+    // Mirrors scripts/safety.json "default". Only reached by direct API callers —
+    // the UI always sends an explicit value. A list layers checks: they run in order
+    // and stop at the first block, so SAFETY takes a comma-separated list too.
+    const safetySource = safety ?? process.env.SAFETY ?? 'none'
+    const safetyNames = (Array.isArray(safetySource) ? safetySource : safetySource.split(',')).map((name) =>
+        typeof name === 'string' ? name.trim() : name,
     )
-    if (guardrailNames.length === 0 || guardrailNames.some((name) => typeof name !== 'string' || name === '')) {
-        res.status(400).json({ error: 'guardrail must be a string or an array of strings' })
+    if (safetyNames.length === 0 || safetyNames.some((name) => typeof name !== 'string' || name === '')) {
+        res.status(400).json({ error: 'safety must be a string or an array of strings' })
         return
     }
 
-    const unknownGuardrail = guardrailNames.find((name) => !GUARDRAILS[name])
-    if (unknownGuardrail) {
-        res.status(400).json({ error: `Unknown guardrail: ${unknownGuardrail}` })
+    const unknownCheck = safetyNames.find((name) => !SAFETY_CHECKS[name])
+    if (unknownCheck) {
+        res.status(400).json({ error: `Unknown safety check: ${unknownCheck}` })
         return
     }
 
@@ -124,13 +124,13 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Providers return { reply, blocked, reason } so a guardrail refusal is
+        // Providers return { reply, blocked, reason } so a safety refusal is
         // distinguishable from an answer — every block returns the same REFUSAL_MESSAGE.
         const verdict = await withTimeout(
-            providerModule.chat({ message, history: validatedHistory, modelId, guardrail: guardrailNames }),
+            providerModule.chat({ message, history: validatedHistory, modelId, safety: safetyNames }),
             CHAT_TIMEOUT_MS,
         )
-        res.status(200).json({ ...verdict, guardrail: guardrailNames.join(',') })
+        res.status(200).json({ ...verdict, safety: safetyNames.join(',') })
     } catch (err) {
         if (err.message === 'TIMEOUT') {
             res.status(504).json({ error: 'Request to provider timed out' })
