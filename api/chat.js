@@ -2,7 +2,6 @@ import * as bedrock from '../lib/providers/bedrock.js'
 import * as bedrockInline from '../lib/providers/bedrock-inline.js'
 import * as azure from '../lib/providers/azure.js'
 import * as vercel from '../lib/providers/vercel.js'
-import * as openai from '../lib/providers/openai.js'
 import { SAFETY_CHECKS } from '../lib/safety/index.js'
 
 const PROVIDERS = {
@@ -10,7 +9,6 @@ const PROVIDERS = {
     'bedrock-inline': bedrockInline,
     azure,
     vercel,
-    openai,
 }
 
 const MAX_MESSAGE_LENGTH = 4000

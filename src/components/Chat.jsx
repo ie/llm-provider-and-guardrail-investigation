@@ -77,6 +77,7 @@ export default function Chat({ vercelModels }) {
           text: data.reply,
           blocked: data.blocked,
           reason: data.reason,
+          info: `${selectedProvider} - ${activeModel} - ${selectedSafety === "none" ? "No safety check" : selectedSafety}`
         },
       ])
   }
@@ -91,7 +92,7 @@ export default function Chat({ vercelModels }) {
     <>
       <TooltipPopup pointerPosition="middle-right">{m.text}</TooltipPopup>
       <Typography variant="superscript">
-        {selectedProvider} - {activeModel} - {selectedSafety === "none" ? "No safety check" : selectedSafety}
+        {m.info}
       </Typography>
       {m.blocked && (
         <Typography variant="superscript">
