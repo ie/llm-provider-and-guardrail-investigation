@@ -90,8 +90,9 @@ export default async function handler(req, res) {
         return
     }
 
-    // mirrors scripts/guardrails.json default; only openai/vercel act on it
-    const guardrailName = guardrail ?? process.env.GUARDRAIL ?? 'azure'
+    // Mirrors scripts/guardrails.json "default". Only reached by direct API callers —
+    // the UI always sends an explicit value.
+    const guardrailName = guardrail ?? process.env.GUARDRAIL ?? 'none'
     if (!GUARDRAILS[guardrailName]) {
         res.status(400).json({ error: `Unknown guardrail: ${guardrailName}` })
         return
@@ -113,11 +114,13 @@ export default async function handler(req, res) {
     }
 
     try {
-        const reply = await withTimeout(
+        // Providers return { reply, blocked, reason } so a guardrail refusal is
+        // distinguishable from an answer — every block returns the same REFUSAL_MESSAGE.
+        const verdict = await withTimeout(
             providerModule.chat({ message, history: validatedHistory, modelId, guardrail: guardrailName }),
             CHAT_TIMEOUT_MS,
         )
-        res.status(200).json({ reply })
+        res.status(200).json({ ...verdict, guardrail: guardrailName })
     } catch (err) {
         if (err.message === 'TIMEOUT') {
             res.status(504).json({ error: 'Request to provider timed out' })

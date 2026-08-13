@@ -14,7 +14,10 @@ The current working prototype is the @api/providers/vercel.js file. The only ver
   - Tool handler @api/utils/tools.js will call the appropriate tool until model stops
 
 Bedrock is Amazon Bedrock version of this pattern.
-The azure/bedrock-mantle files are agent "equivalent" version code. They require additional role permission on the portal and therefore not functioning.
+The bedrock-mantle file is the agent "equivalent" version code. It requires additional role permission on the portal and therefore not functioning.
+
+@api/providers/azure.js runs end-to-end on `AZURE_OPENAI_API_KEY`. It falls back to
+`DefaultAzureCredential`, which still needs the `Azure AI User` role at project scope.
 
 ## Quickstart
 
@@ -27,6 +30,22 @@ yarn dev
 ### AWS Bedrock
 
 1. Create a guardrail, save the ID and version
+
+Two mechanisms point at the same guardrail:
+
+- `guardrail=bedrock` — standalone `ApplyGuardrail` calls, one on input, one on output
+- `provider=bedrock-inline` — `guardrailConfig` inside `Converse`
+
+Both send the contextual grounding triplet (`grounding_source` + `query` + `guard_content`), so
+their verdicts are comparable. Grounding sources are the retrieved chunks plus any tool output —
+without the tool output a dealer-lookup answer scores 0.12 and blocks; with it, 0.90.
+
+Contextual grounding threshold is 0.7 (console config, unchanged). Relevance is not configured.
+Scores are logged per turn as `[guardrail] ... details=[{"grounding":{...}}]`.
+
+Warning: scores swing run to run because the model rewords the answer each time. Two runs of the
+same question have landed either side of the threshold. Do not rank the two mechanisms off a
+single pass.
 
 ### Azure Foundry | Guardrail
 

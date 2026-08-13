@@ -88,7 +88,11 @@ export default function App() {
     const data = await res.json()
     if (data.error) {
       setError(`${res.status} ${data.details || data.error}`)
-    } else setMessages((prev) => [...prev, { role: 'bot', text: data.reply }])
+    } else
+      setMessages((prev) => [
+        ...prev,
+        { role: 'bot', text: data.reply, blocked: data.blocked, reason: data.reason },
+      ])
   }
 
   // TODO: When no input, default to center title + chat section
@@ -108,14 +112,20 @@ export default function App() {
           {/* Chat */}
           <Stack direction="column" className="flex-auto overflow-y-auto">
             {messages.map((m, i) => (
-              <TooltipPopup
-                key={i}
-                pointerPosition={
-                  m.role === 'user' ? 'middle-left' : 'middle-right'
-                }
-              >
-                {m.text}
-              </TooltipPopup>
+              <div key={i}>
+                <TooltipPopup
+                  pointerPosition={
+                    m.role === 'user' ? 'middle-left' : 'middle-right'
+                  }
+                >
+                  {m.text}
+                </TooltipPopup>
+                {m.blocked && (
+                  <Typography variant="superscript">
+                    blocked by guardrail{m.reason ? ` — ${m.reason}` : ''}
+                  </Typography>
+                )}
+              </div>
             ))}
             {error && (
               <Typography className="text-danger" variant="b2">

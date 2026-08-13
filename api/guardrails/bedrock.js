@@ -6,6 +6,7 @@ import {
     InternalServerException,
 } from '@aws-sdk/client-bedrock-runtime'
 import { withRetry } from '../lib/retry.js'
+import { summariseAssessment } from './assessment.js'
 import { AWS_REGION, BEDROCK_GUARDRAIL_ID, BEDROCK_GUARDRAIL_VERSION } from '../constants.js'
 
 const bedrockRuntime = new BedrockRuntimeClient({ region: AWS_REGION })
@@ -44,5 +45,11 @@ export async function bedrock(text, { documents = [], source, query }) {
     return {
         blocked: response.action === 'GUARDRAIL_INTERVENED',
         reason: response.actionReason,
+        grounded,
+        // Carries the contextual grounding score against its threshold — the number you
+        // tune the console config on. Summarised to keep the ARN out of the log.
+        details: (response.assessments ?? [])
+            .map(summariseAssessment)
+            .filter((summary) => Object.keys(summary).length),
     }
 }
