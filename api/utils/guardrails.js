@@ -9,13 +9,11 @@ import { shieldPrompt } from './azureContext.js'
 import { withRetry } from './retry.js'
 import { generateText } from 'ai'
 import { SAFEGUARD_POLICY, POLICY_VERSION } from './safeguardPolicy.js'
+import { AWS_REGION, BEDROCK_GUARDRAIL_ID, BEDROCK_GUARDRAIL_VERSION } from './constants.js'
 
-const REGION = process.env.AWS_REGION ?? 'ap-southeast-2'
-const GUARDRAIL_ID = process.env.BEDROCK_GUARDRAIL_ID ?? '<BEDROCK_GUARDRAIL_ID>'
-const GUARDRAIL_VERSION = process.env.BEDROCK_GUARDRAIL_VERSION ?? '<BEDROCK_GUARDRAIL_VERSION>'
 const SAFEGUARD_MODEL = process.env.SAFEGUARD_MODEL ?? 'openai/gpt-oss-safeguard-20b'
 
-const bedrockRuntime = new BedrockRuntimeClient({ region: REGION })
+const bedrockRuntime = new BedrockRuntimeClient({ region: AWS_REGION })
 
 async function none() {
     return { blocked: false }
@@ -49,8 +47,8 @@ async function bedrock(text, { documents = [], source, query }) {
         () =>
             bedrockRuntime.send(
                 new ApplyGuardrailCommand({
-                    guardrailIdentifier: GUARDRAIL_ID,
-                    guardrailVersion: GUARDRAIL_VERSION,
+                    guardrailIdentifier: BEDROCK_GUARDRAIL_ID,
+                    guardrailVersion: BEDROCK_GUARDRAIL_VERSION,
                     source,
                     content,
                 }),
@@ -123,7 +121,7 @@ async function safeguard(text, { source, documents = [], query }) {
         console.error(
             `[guardrail] safeguard parse failed policy=${POLICY_VERSION} source=${source}: ${err.message}\nraw verdict: ${verdict}`,
         )
-        throw new Error(`safeguard verdict unparseable: ${err.message}`)
+      throw new Error(`safeguard verdict unparseable: ${err.message}`, { cause: err })
     }
 
     return {

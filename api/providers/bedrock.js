@@ -8,18 +8,19 @@ import {
   InternalServerException,
   ModelNotReadyException,
 } from '@aws-sdk/client-bedrock-runtime'
-import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime'
 import { TOOLS } from '../utils/tools.js'
-import { MAX_TOOL_ITERATIONS, EMPTY_RESPONSE_MESSAGE } from '../utils/constants.js'
+import {
+  MAX_TOOL_ITERATIONS,
+  EMPTY_RESPONSE_MESSAGE,
+  AWS_REGION,
+  BEDROCK_GUARDRAIL_ID,
+  BEDROCK_GUARDRAIL_VERSION,
+} from '../utils/constants.js'
 import { withRetry } from '../utils/retry.js'
+import { retrieve } from '../retrieval/bedrockKb.js'
+import { buildContextPrompt } from '../retrieval/prompt.js'
 
-const REGION = process.env.AWS_REGION ?? 'ap-southeast-2'
-const KNOWLEDGE_BASE_ID = process.env.BEDROCK_KNOWLEDGE_BASE_ID ?? '<BEDROCK_KNOWLEDGE_BASE_ID>'
-const GUARDRAIL_ID = process.env.BEDROCK_GUARDRAIL_ID ?? '<BEDROCK_GUARDRAIL_ID>'
-const GUARDRAIL_VERSION = process.env.BEDROCK_GUARDRAIL_VERSION ?? '<BEDROCK_GUARDRAIL_VERSION>'
-
-const bedrockRuntime = new BedrockRuntimeClient({ region: REGION })
-const bedrockAgentRuntime = new BedrockAgentRuntimeClient({ region: REGION })
+const bedrockRuntime = new BedrockRuntimeClient({ region: AWS_REGION })
 
 const TOOL_CONFIG = {
   tools: Object.values(TOOLS).map((tool) => ({
@@ -44,18 +45,8 @@ async function resolveToolUse(toolUseBlocks) {
 export async function chat({ message, history, modelId }) {
   const MODEL_ID = modelId ?? process.env.BEDROCK_MODEL_ID ?? '<BEDROCK_MODEL_ID>'
 
-  // TODO: no retrievalConfiguration set (e.g. vectorSearchConfiguration.numberOfResults) — relying on AWS default, tune once retrieval quality is observed
-  const retrieval = await bedrockAgentRuntime.send(
-    new RetrieveCommand({
-      knowledgeBaseId: KNOWLEDGE_BASE_ID,
-      retrievalQuery: { text: message },
-    }),
-  )
-
-  const context = (retrieval.retrievalResults ?? [])
-    .map((result) => result.content?.text)
-    .filter(Boolean)
-    .join('\n\n')
+  const chunks = await retrieve(message)
+  const contextPrompt = buildContextPrompt(chunks)
 
   const messages = [
     ...history.map((turn) => ({
@@ -71,12 +62,12 @@ export async function chat({ message, history, modelId }) {
         bedrockRuntime.send(
           new ConverseCommand({
             modelId: MODEL_ID,
-            system: [{ text: `Context:\n${context}` }],
+            ...(contextPrompt && { system: [{ text: contextPrompt }] }),
             messages,
             toolConfig: TOOL_CONFIG,
             guardrailConfig: {
-              guardrailIdentifier: GUARDRAIL_ID,
-              guardrailVersion: GUARDRAIL_VERSION,
+              guardrailIdentifier: BEDROCK_GUARDRAIL_ID,
+              guardrailVersion: BEDROCK_GUARDRAIL_VERSION,
               trace: 'enabled',
             },
           }),
