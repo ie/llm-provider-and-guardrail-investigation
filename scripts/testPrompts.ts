@@ -83,6 +83,7 @@ const MODELS_BY_PROVIDER: Record<string, string[]> = JSON.parse(fs.readFileSync(
 const MODEL_ENV_VAR_BY_PROVIDER: Record<string, string> = {
   azure: 'AZURE_MODEL_DEPLOYMENT',
   bedrock: 'BEDROCK_MODEL_ID',
+  'bedrock-inline': 'BEDROCK_MODEL_ID',
   vercel: 'AI_GATEWAY_MODEL_NAME',
 }
 

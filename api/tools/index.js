@@ -1,4 +1,4 @@
-import { fetchLocationSuggestion } from '../mockService.js'
+import { fetchLocationSuggestion } from './dealerLookup.js'
 
 /**
  * Tips to avoid large token spend when embedding functions

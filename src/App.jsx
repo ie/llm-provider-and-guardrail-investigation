@@ -61,8 +61,6 @@ export default function App() {
     }
   }, [selectedProvider])
 
-  const guardrailSwitchable = GUARDRAILS.providers.includes(selectedProvider)
-  const activeGuardrail = guardrailSwitchable ? selectedGuardrail : 'none'
   const activeModel = selectedModel || modelOptions[0]?.value || ''
 
   async function sendMessage(e) {
@@ -84,7 +82,7 @@ export default function App() {
         })),
         provider: selectedProvider,
         modelId: activeModel,
-        ...(guardrailSwitchable && { guardrail: selectedGuardrail }),
+        guardrail: selectedGuardrail,
       }),
     })
     const data = await res.json()
@@ -151,12 +149,8 @@ export default function App() {
                   <Select
                     label="guardrail"
                     options={guardrailOptions}
-                    value={activeGuardrail}
-                    disabled={!guardrailSwitchable}
-                    onChange={(e) =>
-                      guardrailSwitchable &&
-                      setSelectedGuardrail(e.target.value)
-                    }
+                    value={selectedGuardrail}
+                    onChange={(e) => setSelectedGuardrail(e.target.value)}
                   />
                 </Stack>
 

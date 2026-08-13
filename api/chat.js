@@ -1,11 +1,13 @@
 import * as bedrock from './providers/bedrock.js'
+import * as bedrockInline from './providers/bedrock-inline.js'
 import * as azure from './providers/azure.js'
 import * as vercel from './providers/vercel.js'
 import * as openai from './providers/openai.js'
-import { GUARDRAILS } from './utils/guardrails.js'
+import { GUARDRAILS } from './guardrails/index.js'
 
 const PROVIDERS = {
     bedrock,
+    'bedrock-inline': bedrockInline,
     azure,
     vercel,
     openai,

@@ -1,5 +1,5 @@
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime'
-import { AWS_REGION } from '../utils/constants.js'
+import { AWS_REGION } from '../constants.js'
 
 const KNOWLEDGE_BASE_ID = process.env.BEDROCK_KNOWLEDGE_BASE_ID ?? '<BEDROCK_KNOWLEDGE_BASE_ID>'
 

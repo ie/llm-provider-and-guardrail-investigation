@@ -8,17 +8,19 @@ import {
   InternalServerException,
   ModelNotReadyException,
 } from '@aws-sdk/client-bedrock-runtime'
-import { TOOLS } from '../utils/tools.js'
+import { TOOLS } from '../tools/index.js'
 import {
   MAX_TOOL_ITERATIONS,
   EMPTY_RESPONSE_MESSAGE,
+  REFUSAL_MESSAGE,
   AWS_REGION,
   BEDROCK_GUARDRAIL_ID,
   BEDROCK_GUARDRAIL_VERSION,
-} from '../utils/constants.js'
-import { withRetry } from '../utils/retry.js'
+} from '../constants.js'
+import { withRetry } from '../lib/retry.js'
 import { retrieve } from '../retrieval/bedrockKb.js'
 import { buildContextPrompt } from '../retrieval/prompt.js'
+import { applyGuardrail } from '../guardrails/index.js'
 
 const bedrockRuntime = new BedrockRuntimeClient({ region: AWS_REGION })
 
@@ -42,11 +44,19 @@ async function resolveToolUse(toolUseBlocks) {
   )
 }
 
-export async function chat({ message, history, modelId }) {
+// inlineGuardrail runs the Bedrock guardrail inside Converse instead of as separate
+// ApplyGuardrail calls — see providers/bedrock-inline.js. The two layer independently:
+// the `guardrail` arg still drives the registry checks on top.
+export async function chat({ message, history, modelId, guardrail, inlineGuardrail = false }) {
   const MODEL_ID = modelId ?? process.env.BEDROCK_MODEL_ID ?? '<BEDROCK_MODEL_ID>'
 
   const chunks = await retrieve(message)
   const contextPrompt = buildContextPrompt(chunks)
+
+  const inputCheck = await applyGuardrail(guardrail, message, { documents: chunks, source: 'INPUT' })
+  if (inputCheck.blocked) {
+    return REFUSAL_MESSAGE
+  }
 
   const messages = [
     ...history.map((turn) => ({
@@ -65,11 +75,13 @@ export async function chat({ message, history, modelId }) {
             ...(contextPrompt && { system: [{ text: contextPrompt }] }),
             messages,
             toolConfig: TOOL_CONFIG,
-            guardrailConfig: {
-              guardrailIdentifier: BEDROCK_GUARDRAIL_ID,
-              guardrailVersion: BEDROCK_GUARDRAIL_VERSION,
-              trace: 'enabled',
-            },
+            ...(inlineGuardrail && {
+              guardrailConfig: {
+                guardrailIdentifier: BEDROCK_GUARDRAIL_ID,
+                guardrailVersion: BEDROCK_GUARDRAIL_VERSION,
+                trace: 'enabled',
+              },
+            }),
           }),
         ),
       (err) =>
@@ -78,11 +90,6 @@ export async function chat({ message, history, modelId }) {
         err instanceof InternalServerException ||
         err instanceof ModelNotReadyException,
     )
-
-    if (result.stopReason === 'guardrail_intervened') {
-      // TODO: Log this somewhere
-      console.warn('Bedrock guardrail intervened', result, JSON.stringify(result.trace?.guardrail))
-    }
 
     return result
   }
@@ -98,5 +105,25 @@ export async function chat({ message, history, modelId }) {
     iterations++
   }
 
-  return converse.output?.message?.content?.find((block) => block.text)?.text ?? EMPTY_RESPONSE_MESSAGE
+  // Catches an intervention from the first send or any inside the tool loop. Reported in
+  // the registry's log shape so the two mechanisms stay comparable.
+  if (converse.stopReason === 'guardrail_intervened') {
+    console.log(
+      `[guardrail] name=bedrock-inline source=CONVERSE blocked=true trace=${JSON.stringify(converse.trace?.guardrail)}`,
+    )
+    return REFUSAL_MESSAGE
+  }
+
+  const reply = converse.output?.message?.content?.find((block) => block.text)?.text
+
+  if (!reply) {
+    return EMPTY_RESPONSE_MESSAGE
+  }
+
+  const outputCheck = await applyGuardrail(guardrail, reply, { documents: chunks, source: 'OUTPUT', query: message })
+  if (outputCheck.blocked) {
+    return REFUSAL_MESSAGE
+  }
+
+  return reply
 }

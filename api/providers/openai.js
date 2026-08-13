@@ -1,10 +1,10 @@
 // OPENAI powered by Vercel AI Gateway for now
 
 import OpenAI from 'openai'
-import { TOOLS, resolveFunctionCalls } from '../utils/tools.js'
-import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE, EMPTY_RESPONSE_MESSAGE } from '../utils/constants.js'
-import { withRetry } from '../utils/retry.js'
-import { applyGuardrail } from '../utils/guardrails.js'
+import { TOOLS, resolveFunctionCalls } from '../tools/index.js'
+import { MAX_TOOL_ITERATIONS, REFUSAL_MESSAGE, EMPTY_RESPONSE_MESSAGE } from '../constants.js'
+import { withRetry } from '../lib/retry.js'
+import { applyGuardrail } from '../guardrails/index.js'
 import { retrieve } from '../retrieval/azureSearch.js'
 import { buildContextPrompt } from '../retrieval/prompt.js'
 

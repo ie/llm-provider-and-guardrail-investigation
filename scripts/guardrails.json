@@ -1,5 +1,4 @@
 {
   "default": "none",
-  "options": ["none", "azure", "bedrock", "safeguard"],
-  "providers": ["openai", "vercel"]
+  "options": ["none", "azure", "bedrock", "safeguard"]
 }
