@@ -1,5 +1,5 @@
 {
-  "vercel": ["openai/gpt-5-nano", "amazon/nova-2-lite", "amazon/nova-lite", "amazon/nova-pro"],
+  "vercel": [],
   "azure": ["gpt-5-nano", "mai-thinking-1"],
   "bedrock": ["amazon.nova-lite-v1:0"],
   "bedrock-inline": ["amazon.nova-lite-v1:0"]
