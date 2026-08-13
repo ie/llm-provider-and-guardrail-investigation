@@ -11,7 +11,7 @@ The current working prototype is the @api/providers/vercel.js file. The only ver
   @api/retrieval/bedrockKb.js for the Bedrock knowledge base
 - Wraps the knowledge (if applicable) + user message history in a prompt shield (powered by Azure)
 - Model may return an answer or request a tool
-  - Tool handler @api/utils/tools.js will call the appropriate tool until model stops
+  - Tool handler @api/tools/index.js will call the appropriate tool until model stops
 
 Bedrock is Amazon Bedrock version of this pattern.
 The azure/bedrock-mantle files are agent "equivalent" version code. They require additional role permission on the portal and therefore not functioning.
@@ -34,7 +34,7 @@ yarn dev
 
 ### gpt-oss-safeguard (Vercel AI Gateway)
 
-No portal setup. The policy is `api/utils/safeguardPolicy.js` — a versioned text file the model
+No portal setup. The policy is `api/guardrails/policy.js` — a versioned text file the model
 classifies against at inference time. Select `safeguard` in the guardrail dropdown, or set
 `GUARDRAIL=safeguard`. Override the model with `SAFEGUARD_MODEL` (default
 `openai/gpt-oss-safeguard-20b`; only the 20b variant is on the gateway).
@@ -50,13 +50,25 @@ TODO:
 - Decide production behaviour for an unparseable verdict. `safeguard()` currently throws, which
   surfaces as a 500. Production must choose fail open or fail closed.
 - Confirm whether the gateway forwards `reasoningEffort` to the upstream host. Rate limits blocked
-  that check.
-- Support layering guardrails. gpt-oss-safeguard is a classifier only — no PII masking, no
-  grounding score, no audit trail. Running it alongside `bedrock` needs `guardrail` to accept a
-  list in `api/chat.js`.
-- Re-enable the `should-answer` suite in `scripts/testPrompts.ts` before trusting any catch rate.
-  Without it the false-positive rate is unmeasured, and `off_scope` is the rule most likely to
-  reject legitimate questions.
+  that check. Note `safeguard()` does not send it at all yet.
+
+## Selecting guardrails
+
+`GUARDRAIL` is required — there is no default, so a deploy that omits it fails with a 500 rather
+than silently picking one. Set `GUARDRAIL=none` to run without a guardrail.
+
+gpt-oss-safeguard is a classifier only — no PII masking, no grounding score, no audit trail — so
+it is usually layered with `bedrock`. Pass a comma-separated list to layer them:
+
+```bash
+GUARDRAIL=bedrock,safeguard
+```
+
+Guardrails run in the order given and stop at the first block, so put the cheapest check first.
+The request body accepts the same as either a string or an array of strings.
+
+Layering in the `bedrock-inline` provider is separate: its guardrail runs inside the Converse
+call, and the `GUARDRAIL` chain still applies on top.
 
 ## Testing
 

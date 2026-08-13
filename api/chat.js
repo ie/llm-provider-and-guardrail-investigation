@@ -73,8 +73,8 @@ export default async function handler(req, res) {
         res.status(400).json({ error: 'provider must be a string' })
         return
     }
-    if (guardrail !== undefined && typeof guardrail !== 'string') {
-        res.status(400).json({ error: 'guardrail must be a string' })
+    if (guardrail !== undefined && typeof guardrail !== 'string' && !Array.isArray(guardrail)) {
+        res.status(400).json({ error: 'guardrail must be a string or an array of strings' })
         return
     }
 
@@ -90,10 +90,26 @@ export default async function handler(req, res) {
         return
     }
 
-    // mirrors scripts/guardrails.json default; only openai/vercel act on it
-    const guardrailName = guardrail ?? process.env.GUARDRAIL ?? 'azure'
-    if (!GUARDRAILS[guardrailName]) {
-        res.status(400).json({ error: `Unknown guardrail: ${guardrailName}` })
+    // No default: an unconfigured deploy must fail rather than silently pick a guardrail.
+    // Select 'none' to run without one. GUARDRAIL takes a comma-separated list so a deploy
+    // can layer guardrails without a client change.
+    const guardrailSource = guardrail ?? process.env.GUARDRAIL
+    if (guardrailSource === undefined) {
+        res.status(500).json({ error: 'GUARDRAIL environment variable is not set' })
+        return
+    }
+
+    const guardrailNames = (Array.isArray(guardrailSource) ? guardrailSource : guardrailSource.split(',')).map(
+        (name) => (typeof name === 'string' ? name.trim() : name),
+    )
+    if (guardrailNames.length === 0 || guardrailNames.some((name) => typeof name !== 'string' || name === '')) {
+        res.status(400).json({ error: 'guardrail must be a string or an array of strings' })
+        return
+    }
+
+    const unknownGuardrail = guardrailNames.find((name) => !GUARDRAILS[name])
+    if (unknownGuardrail) {
+        res.status(400).json({ error: `Unknown guardrail: ${unknownGuardrail}` })
         return
     }
 
@@ -114,7 +130,7 @@ export default async function handler(req, res) {
 
     try {
         const reply = await withTimeout(
-            providerModule.chat({ message, history: validatedHistory, modelId, guardrail: guardrailName }),
+            providerModule.chat({ message, history: validatedHistory, modelId, guardrail: guardrailNames }),
             CHAT_TIMEOUT_MS,
         )
         res.status(200).json({ reply })

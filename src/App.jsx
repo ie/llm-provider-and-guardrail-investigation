@@ -8,6 +8,7 @@ import {
   FormSection,
   Select,
 } from './components'
+import { cn } from './components/utils'
 import { useState, useEffect } from 'react'
 import { gateway } from '@ai-sdk/gateway'
 
@@ -17,11 +18,13 @@ import GUARDRAILS from '../scripts/guardrails.json'
 const providerOptions = Object.keys(MODELS).map((p) => ({ label: p, value: p }))
 const guardrailOptions = GUARDRAILS.options.map((g) => ({ label: g, value: g }))
 
+// flex-grow is animatable, so the empty/expanded swap is driven by it rather than by
+// justify-content, which is not.
+const TRANSITION =
+  'transition-all duration-300 ease-out motion-reduce:transition-none'
+
 export default function App() {
-  const [messages, setMessages] = useState([
-    { role: 'user', text: 'Hi' },
-    { role: 'bot', text: 'Hello' },
-  ])
+  const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [selectedProvider, setSelectedProvider] = useState(
     import.meta.env.VITE_PROVIDER ?? providerOptions[0].value,
@@ -91,22 +94,42 @@ export default function App() {
     } else setMessages((prev) => [...prev, { role: 'bot', text: data.reply }])
   }
 
-  // TODO: When no input, default to center title + chat section
-  // Then expand to the title + messages + chat section
+  const isEmpty = messages.length === 0
+
   return (
     <ContentBlock>
       <ContentBlockInnerContainer width="8col">
-        <Stack direction="column" spacing="s" className="h-[90vh]">
-          {/* Title */}
-          <Stack spacing="4xs">
-            <Typography variant="h3" component="h5">
-              Lexus Chat
-            </Typography>
-            <Typography variant="superscript">prototype</Typography>
+        <Stack
+          direction="column"
+          spacing="s"
+          className="h-[90vh]"
+          justifyContent="center"
+        >
+          {/* Title — the spacers collapse to nothing once a conversation starts,
+              sliding the title from centre to left. The wrapper carries no gap so
+              they leave no indent behind. */}
+          <Stack spacing="none">
+            <div className={TRANSITION} style={{ flexGrow: isEmpty ? 1 : 0 }} />
+            <Stack spacing="4xs">
+              <Typography variant="h3" component="h5">
+                Lexus Chat
+              </Typography>
+              <Typography variant="superscript">prototype</Typography>
+            </Stack>
+            <div className={TRANSITION} style={{ flexGrow: isEmpty ? 1 : 0 }} />
           </Stack>
 
-          {/* Chat */}
-          <Stack direction="column" className="flex-auto overflow-y-auto">
+          {/* Chat — stays mounted at zero height while empty so it can grow
+              into place rather than pop in. */}
+          <Stack
+            direction="column"
+            className={cn(
+              'overflow-y-auto',
+              TRANSITION,
+              isEmpty && 'opacity-0',
+            )}
+            style={{ flexGrow: isEmpty ? 0 : 1 }}
+          >
             {messages.map((m, i) => (
               <TooltipPopup
                 key={i}
