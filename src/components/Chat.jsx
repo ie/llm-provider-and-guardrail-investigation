@@ -96,8 +96,10 @@ export default function Chat({ vercelModels }) {
     const a = document.createElement('a')
     a.href = url
     a.download = 'chat-export.json'
+    document.body.appendChild(a)
     a.click()
-    URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 100)
   }
 
   const isEmpty = messages.length === 0
