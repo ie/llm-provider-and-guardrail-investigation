@@ -1,5 +1,5 @@
 {
-  "vercel": [],
+  "vercel": ["inclusionai/ling-3.0-flash-free", "nvidia/nemotron-3-nano-30b-a3b"],
   "azure": ["gpt-5-nano", "mai-thinking-1"],
   "bedrock": ["amazon.nova-lite-v1:0"],
   "bedrock-inline": ["amazon.nova-lite-v1:0"]
