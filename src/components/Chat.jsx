@@ -82,6 +82,19 @@ export default function Chat({ vercelModels }) {
       ])
   }
 
+  function handleExport() {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const blob = new Blob([JSON.stringify(messages, null, 2)], {
+      type: 'application/json',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `chat-export_${timestamp}.json`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 100)
+  }
+
   const isEmpty = messages.length === 0
 
   const renderUserDialog = (m) => (
@@ -195,11 +208,16 @@ export default function Chat({ vercelModels }) {
           </form>
         </Stack>
 
-        {!isEmpty && <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-          <Button variant="secondary" onClick={() => setMessages([])}>
-            + New Chat
-          </Button>
-        </div>}
+        {!isEmpty && (
+          <Stack spacing="xs" justifyContent="center" style={{ marginTop: '1rem' }}>
+            <Button variant="secondary" onClick={handleExport}>
+              Export Conversation
+            </Button>
+            <Button variant="primary" onClick={() => setMessages([])}>
+              + New Chat
+            </Button>
+          </Stack>
+        )}
       </ContentBlockInnerContainer>
     </ContentBlock>
   )
