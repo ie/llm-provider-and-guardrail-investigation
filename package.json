@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test:prompts": "tsx scripts/testPrompts.ts",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "create:appsettings": "npx tsx scripts/envToAppSettings.ts .env.local azure_appsettings.json"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-agent-runtime": "^3.1089.0",
