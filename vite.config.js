@@ -1,6 +1,18 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+
+// Design system package, expected to be present via `yarn link`.
+const DS = '@tmca/lexus-kit'
+const LOCAL = path.resolve(process.cwd(), 'src/components/index.js')
+
+// ESM imports are static, so the DS-or-local choice cannot be a runtime try/catch —
+// it is resolved here and both consumers import the fixed '@components' specifier.
+// Checking for the package directory rather than require.resolve() avoids failing on
+// ESM-only packages whose exports map has no require condition.
+const isLinked = existsSync(path.resolve(process.cwd(), 'node_modules', DS, 'package.json'))
 
 // Dev server middleware to handle /api/chat requests
 const apiMiddleware = {
@@ -56,10 +68,17 @@ export default defineConfig(({ mode }) => {
     // can read AWS_REGION / BEDROCK_* via process.env during `yarn dev`.
     Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
 
+    console.log(`[components] ${isLinked ? DS : 'local'}`)
+
     return {
         plugins: [react(), tailwindcss(), apiMiddleware],
         resolve: {
+            alias: [{ find: /^@components$/, replacement: isLinked ? DS : LOCAL }],
             dedupe: ['react', 'react-dom'],
         },
+        // A linked package is a symlink: keep it out of the pre-bundle and watch
+        // through the link so edits in the DS repo trigger HMR.
+        optimizeDeps: { exclude: isLinked ? [DS] : [] },
+        server: { watch: { followSymlinks: isLinked } },
     }
 })

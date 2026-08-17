@@ -8,6 +8,14 @@ A Vite proof of concept that compares Azure, AWS Bedrock, and Vercel APIs for a 
 yarn dev
 ```
 
+### Local dev with Lexus-Kit
+
+The app will default to a generic UI on deployment. You can optionally link Lexus-Kit to show the Lexus UI locally.
+
+```bash
+yarn link @tmca/lexus-kit
+```
+
 ## Settings
 
 The UI exposes three dropdowns:

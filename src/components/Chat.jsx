@@ -7,7 +7,7 @@ import {
   Typography,
   FormSection,
   Select,
-} from './'
+} from '@components'
 import { cn } from './utils'
 import { Fragment, useState, useEffect } from 'react'
 
