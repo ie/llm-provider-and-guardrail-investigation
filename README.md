@@ -12,6 +12,10 @@ yarn dev
 
 The app will default to a generic UI on deployment. You can optionally link Lexus-Kit to show the Lexus UI locally.
 
+```cmd with Admin privilege
+mklink /D node_modules\@tmca\lexus-dls <Your Lexus Kit Path>\node_modules\@tmca\lexus-dls 
+```
+
 ```bash
 yarn link @tmca/lexus-kit
 ```

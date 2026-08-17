@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "baseUrl": ".",
+    // Mirrors the @components alias in vite.config.js. Ordered: the linked design
+    // system wins, the local fallback resolves when it is absent.
+    "paths": {
+      "@components": ["./node_modules/@tmca/lexus-kit", "./src/components/index.js"]
+    }
+  },
+  "include": ["src", "lib", "api"]
+}
