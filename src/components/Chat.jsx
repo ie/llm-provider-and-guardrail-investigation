@@ -4,6 +4,7 @@ import {
   ContentBlockInnerContainer,
   Stack,
   TooltipPopup,
+  TooltipWithIcon,
   Typography,
   FormSection,
   Select,
@@ -38,6 +39,7 @@ export default function Chat({ vercelModels }) {
       selectedProvider === 'vercel'
         ? vercelModels
         : (MODELS[selectedProvider] ?? []).map((m) => ({ label: m, value: m }))
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setModelOptions(options)
   }, [vercelModels, selectedProvider])
 
@@ -65,7 +67,7 @@ export default function Chat({ vercelModels }) {
         safety: selectedSafety,
       }),
     })
-    
+
     const data = await res.json()
     if (data.error) {
       setError(`${res.status} ${data.details || data.error}`)
@@ -77,7 +79,7 @@ export default function Chat({ vercelModels }) {
           text: data.reply,
           blocked: data.blocked,
           reason: data.reason,
-          info: `${selectedProvider} - ${activeModel} - ${selectedSafety === "none" ? "No safety check" : selectedSafety}`
+          info: `${selectedProvider} - ${activeModel} - ${selectedSafety === 'none' ? 'No safety check' : selectedSafety}`,
         },
       ])
   }
@@ -104,9 +106,7 @@ export default function Chat({ vercelModels }) {
   const renderBotDialog = (m) => (
     <>
       <TooltipPopup pointerPosition="middle-right">{m.text}</TooltipPopup>
-      <Typography variant="superscript">
-        {m.info}
-      </Typography>
+      <Typography variant="superscript">{m.info}</Typography>
       {m.blocked && (
         <Typography variant="superscript">
           blocked by safety check{m.reason ? ` — ${m.reason}` : ''}
@@ -130,7 +130,7 @@ export default function Chat({ vercelModels }) {
           <Stack spacing="none">
             <div className={TRANSITION} style={{ flexGrow: isEmpty ? 1 : 0 }} />
             <Stack spacing="4xs">
-              <Typography variant="h3" component="h5">
+              <Typography variant="h3" component="h5" hasSenkeiLine>
                 Lexus Chat
               </Typography>
               <Typography variant="superscript">prototype</Typography>
@@ -167,15 +167,20 @@ export default function Chat({ vercelModels }) {
               <Stack direction="column">
                 {/* Select Group */}
                 <Stack spacing="xs">
-                  <Select
-                    label="provider"
-                    options={providerOptions}
-                    value={selectedProvider}
-                    onChange={(e) => {
-                      setSelectedProvider(e.target.value)
-                      setSelectedModel('')
-                    }}
-                  />
+                  <Stack className="relative">
+                    <Select
+                      label="provider"
+                      options={providerOptions}
+                      value={selectedProvider}
+                      onChange={(e) => {
+                        setSelectedProvider(e.target.value)
+                        setSelectedModel('')
+                      }}
+                    />
+                    <TooltipWithIcon className="absolute top-0 right-0">
+                      Azure and Bedrock-inline has attached jailbreak safety, while Vercel and Bedrock does not.
+                    </TooltipWithIcon>
+                  </Stack>
                   {modelOptions.length > 0 && (
                     <Select
                       label="models"
@@ -184,12 +189,31 @@ export default function Chat({ vercelModels }) {
                       onChange={(e) => setSelectedModel(e.target.value)}
                     />
                   )}
-                  <Select
-                    label="safety"
-                    options={safetyOptions}
-                    value={selectedSafety}
-                    onChange={(e) => setSelectedSafety(e.target.value)}
-                  />
+                  <Stack className="relative">
+                    <Select
+                      label="safety"
+                      options={safetyOptions}
+                      value={selectedSafety}
+                      onChange={(e) => setSelectedSafety(e.target.value)}
+                    />
+                    <TooltipWithIcon className="absolute top-0 right-0">
+                      <ul>
+                        <li>
+                          Azure prompt shield protects against input injection,
+                          but no content filter
+                        </li>
+                        <li>
+                          Bedrock guardrail is a general safety layer that has
+                          policy protections. The current used guardrail has
+                          prompt injections turned on.
+                        </li>
+                        <li>
+                          gpt oss safeguard is manual version of content filter,
+                          but none on prompt injection.
+                        </li>
+                      </ul>
+                    </TooltipWithIcon>
+                  </Stack>
                 </Stack>
 
                 <Stack spacing="none">
@@ -197,6 +221,9 @@ export default function Chat({ vercelModels }) {
                     className="flex-1 border-b border-transparent bg-transparent text-base text-inherit outline-none focus:border-current"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
+                    // Enter would otherwise implicitly submit via the first
+                    // submit button in the form, which is a tooltip icon.
+                    onKeyDown={(e) => e.key === 'Enter' && sendMessage(e)}
                     placeholder="Ask about Lexus..."
                   />
                   <Button variant="primary" type="submit">
@@ -209,7 +236,11 @@ export default function Chat({ vercelModels }) {
         </Stack>
 
         {!isEmpty && (
-          <Stack spacing="xs" justifyContent="center" style={{ marginTop: '1rem' }}>
+          <Stack
+            spacing="xs"
+            justifyContent="center"
+            style={{ marginTop: '1rem' }}
+          >
             <Button variant="secondary" onClick={handleExport}>
               Export Conversation
             </Button>

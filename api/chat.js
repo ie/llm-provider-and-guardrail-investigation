@@ -135,6 +135,12 @@ export default async function handler(req, res) {
             return
         }
         console.error(err)
-        res.status(500).json({ error: 'Failed to get a response' })
+        // Without this a provider fault (rejected credential, unknown model) looks
+        // identical to a safety failure at the client. Withheld in production —
+        // provider messages carry endpoint and config detail.
+        res.status(500).json({
+            error: 'Failed to get a response',
+            ...(process.env.NODE_ENV !== 'production' && { details: `${err.name}: ${err.message}` }),
+        })
     }
 }
