@@ -57,7 +57,7 @@ export function Typography({
         FONT_WEIGHTS[fontWeight],
         isIndented && 'pl-xs',
         hasSenkeiLine &&
-          "before:content-[''] before:absolute before:inset-x-0 before:top-1/2 before:h-px before:bg-current",
+          "before:content-[''] before:inline-block before:w-xs before:border-orange-600 before:border-t-2 before:mx-1 before:-translate-y-2",
         className,
       )}
       {...rest}
